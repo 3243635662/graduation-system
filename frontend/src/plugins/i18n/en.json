@@ -1,4 +1,10 @@
 {
+  "theme": {
+    "mode": "Mode",
+    "day": "Light",
+    "night": "Dark",
+    "system": "System"
+  },
   "premium": {
     "premium": "premium",
     "UpgradeNow": "Upgrade Now"

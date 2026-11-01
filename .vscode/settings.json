@@ -1,0 +1,37 @@
+{
+  // OXC 默认格式化工具
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+
+  // 保存时自动格式化
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+
+  // 保存时自动修复 Oxlint 能修复的问题
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "always"
+  },
+
+  "i18n-ally.localesPaths": ["frontend/src/plugins/i18n"],
+  "i18n-ally.keystyle": "flat",
+
+  "cSpell.words": [
+    "autoplay",
+    "formkit",
+    "iconify",
+    "lucide",
+    "persistedstate",
+    "reka",
+    "sonner",
+    "tanstack",
+    "unovis",
+    "unplugin",
+    "vaul",
+    "Whbbit1999"
+  ],
+  "[vue]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  }
+}

@@ -8,6 +8,15 @@ import '@/assets/scrollbar.css'
 import '@/assets/themes.css'
 import '@/assets/chart-theme.css'
 import 'vue-sonner/style.css' // vue sonner style
+import '@fontsource/open-sans/400.css'
+import '@fontsource/open-sans/600.css'
+import '@fontsource/open-sans/700.css'
+import '@fontsource/dm-sans/400.css'
+import '@fontsource/dm-sans/500.css'
+import '@fontsource/dm-sans/600.css'
+import '@fontsource/dm-sans/700.css'
+import '@fontsource/space-mono/400.css'
+import '@fontsource/space-mono/700.css'
 
 import '@/utils/env'
 

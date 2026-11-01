@@ -1,50 +1,47 @@
 {
   "name": "shadcn-vue-admin",
-  "type": "module",
   "version": "2.1.2",
   "private": false,
-  "packageManager": "pnpm@11.28.6",
   "description": "Admin Dashboard UI crafted with Shadcn-vue, Vue3 and Vite. Built with responsiveness and accessibility in mind.",
-  "author": "Whbbit1999",
-  "license": "MIT",
+  "keywords": [
+    "eslint",
+    "pinia",
+    "pnpm",
+    "shadcn-vue",
+    "tailwindcss",
+    "tanstack/vue-form",
+    "tanstack/vue-query",
+    "tanstack/vue-table",
+    "typescript",
+    "vite",
+    "vue",
+    "vue-router",
+    "zod"
+  ],
   "homepage": "https://shadcn-vue-admin.netlify.app/",
+  "license": "MIT",
+  "author": "Whbbit1999",
   "repository": {
     "type": "git",
     "url": "https://github.com/Whbbit1999/shadcn-vue-admin"
   },
-  "keywords": [
-    "vue",
-    "vue-router",
-    "vite",
-    "typescript",
-    "tailwindcss",
-    "shadcn-vue",
-    "tanstack/vue-query",
-    "tanstack/vue-table",
-    "tanstack/vue-form",
-    "zod",
-    "eslint",
-    "pinia",
-    "pnpm"
-  ],
-  "engines": {
-    "node": ">=22.15",
-    "pnpm": ">=10"
-  },
+  "type": "module",
   "scripts": {
-    "postinstall": "simple-git-hooks",
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "build:analyze": "ANALYZE=true vite build",
     "preview": "vite preview",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "format": "oxfmt .",
+    "format:check": "oxfmt . --check",
+    "typecheck": "vue-tsc -b",
     "test": "vitest",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "release": "npx bumpp"
+    "test:run": "vitest run"
   },
   "dependencies": {
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/open-sans": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
     "@formkit/auto-animate": "^0.10.0",
     "@internationalized/date": "^3.12.4",
     "@lucide/vue": "^1.59.0",
@@ -77,20 +74,18 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.5.1",
     "@iconify-json/simple-icons": "^1.2.100",
     "@iconify/vue": "^5.0.4",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/eslint-plugin-query": "^5.104.5",
     "@types/node": "^26.6.5",
     "@types/nprogress": "^0.2.3",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vitest/coverage-v8": "^5.0.5",
     "@vue/test-utils": "^2.5.1",
-    "eslint": "^10.13.0",
-    "eslint-plugin-format": "^2.0.1",
     "happy-dom": "^20.14.6",
     "nano-staged": "^1.0.2",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
     "rollup-plugin-visualizer": "^7.1.1",
     "simple-git-hooks": "^2.14.0",
     "tailwindcss": "^4.3.3",
@@ -104,10 +99,19 @@
     "vue-tsc": "^3.3.13"
   },
   "simple-git-hooks": {
-    "pre-commit": "./node_modules/.bin/nano-staged",
-    "pre-push": "pnpm build"
+    "pre-commit": "cd frontend && pnpm exec nano-staged",
+    "pre-push": "cd frontend && pnpm build"
   },
   "nano-staged": {
-    "*": "eslint --fix"
-  }
+    "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts,vue}": [
+      "oxlint --fix",
+      "oxfmt"
+    ],
+    "*.{json,jsonc,css,scss,less,html,md,mdx,yml,yaml}": "oxfmt"
+  },
+  "engines": {
+    "node": ">=22.15",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@11.28.6"
 }

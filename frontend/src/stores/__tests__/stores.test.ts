@@ -23,12 +23,10 @@ describe('stores', () => {
   it('updates theme preferences', () => {
     const themeStore = useThemeStore()
 
-    themeStore.setTheme('blue')
-    themeStore.setRadius(0.75)
+    themeStore.setTheme('soft-pop')
     themeStore.setContentLayout('full')
 
-    expect(themeStore.theme).toBe('blue')
-    expect(themeStore.radius).toBe(0.75)
+    expect(themeStore.theme).toBe('soft-pop')
     expect(themeStore.contentLayout).toBe('full')
   })
 

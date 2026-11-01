@@ -16,7 +16,6 @@ declare global {
   const HOME_PATH: typeof import('../constants/app').HOME_PATH
   const LOGIN_PATH: typeof import('../constants/app').LOGIN_PATH
   const PAGE_SIZES: typeof import('../constants/app').PAGE_SIZES
-  const RADIUS: typeof import('../constants/themes').RADIUS
   const THEMES: typeof import('../constants/themes').THEMES
   const THEME_PRIMARY_COLORS: typeof import('../constants/themes').THEME_PRIMARY_COLORS
   const computed: typeof import('vue').computed
@@ -36,7 +35,7 @@ declare global {
   const isReadonly: typeof import('vue').isReadonly
   const isRef: typeof import('vue').isRef
   const isShallow: typeof import('vue').isShallow
-  const logout: typeof import('../composables/use-auth')['logout']
+  const logout: (typeof import('../composables/use-auth'))['logout']
   const markRaw: typeof import('vue').markRaw
   const navData: typeof import('../constants/sidebar-data').navData
   const nextTick: typeof import('vue').nextTick
@@ -79,7 +78,7 @@ declare global {
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
   const useId: typeof import('vue').useId
-  const useLink: typeof import('vue-router')['useLink']
+  const useLink: (typeof import('vue-router'))['useLink']
   const useModal: typeof import('../composables/use-modal').useModal
   const useModel: typeof import('vue').useModel
   const useRoute: typeof import('vue-router').useRoute
@@ -91,7 +90,7 @@ declare global {
   const useSystemConfigQuery: typeof import('../composables/use-system-config-query').useSystemConfigQuery
   const useSystemTheme: typeof import('../composables/use-system-theme').useSystemTheme
   const useTemplateRef: typeof import('vue').useTemplateRef
-  const useThemeConfig: typeof import('../composables/use-theme-config')['useThemeConfig']
+  const useThemeConfig: (typeof import('../composables/use-theme-config'))['useThemeConfig']
   const useThemeStore: typeof import('../stores/theme').useThemeStore
   const watch: typeof import('vue').watch
   const watchEffect: typeof import('vue').watchEffect
@@ -101,10 +100,28 @@ declare global {
 // for type re-export
 declare global {
   // @ts-ignore
-  export type { Component, Slot, Slots, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, ShallowRef, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
+  export type {
+    Component,
+    Slot,
+    Slots,
+    ComponentPublicInstance,
+    ComputedRef,
+    DirectiveBinding,
+    ExtractDefaultPropTypes,
+    ExtractPropTypes,
+    ExtractPublicPropTypes,
+    InjectionKey,
+    PropType,
+    Ref,
+    ShallowRef,
+    MaybeRef,
+    MaybeRefOrGetter,
+    VNode,
+    WritableComputedRef,
+  } from 'vue'
   import('vue')
   // @ts-ignore
-  export type { Theme, Radius, ContentLayout } from '../constants/themes'
+  export type { Theme, ContentLayout } from '../constants/themes'
   import('../constants/themes')
   // @ts-ignore
   export type { NavigationMode } from '../stores/sidebar-config'

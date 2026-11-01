@@ -1,17 +1,11 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { PaintbrushIcon } from '@lucide/vue'
 
-import { Button } from '@/components/ui/button'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-
 import ContentLayout from './content-layout.vue'
-import CustomColor from './custom-color.vue'
-import CustomRadius from './custom-radius.vue'
 import CustomThemeTitle from './custom-theme-title.vue'
+import CustomTheme from './custom-theme.vue'
 import MenuStyle from './menu-style.vue'
 import ToggleColorMode from './toggle-color-mode.vue'
 </script>
@@ -25,8 +19,7 @@ import ToggleColorMode from './toggle-color-mode.vue'
     </PopoverTrigger>
     <PopoverContent align="end">
       <CustomThemeTitle />
-      <CustomColor />
-      <CustomRadius />
+      <CustomTheme />
       <ToggleColorMode />
       <ContentLayout />
       <MenuStyle />

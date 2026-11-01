@@ -97,10 +97,10 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--theme-radius, var(--radius)) - 4px);
+  --radius-md: calc(var(--theme-radius, var(--radius)) - 2px);
+  --radius-lg: var(--theme-radius, var(--radius));
+  --radius-xl: calc(var(--theme-radius, var(--radius)) + 4px);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -192,7 +192,10 @@
   animation: tw-shimmer var(--shimmer-duration, 2s) linear infinite;
 
   @variant dark {
-    --_highlight: var(--shimmer-color, oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4)));
+    --_highlight: var(
+      --shimmer-color,
+      oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4))
+    );
   }
 
   &:where([dir='rtl'], [dir='rtl'] *) {
@@ -215,7 +218,11 @@
 
 @utility shimmer-color-* {
   --shimmer-color: --value(--color, [color]);
-  --shimmer-color: color-mix(in oklch, --value(--color, [color]) calc(--modifier(integer) * 1%), transparent);
+  --shimmer-color: color-mix(
+    in oklch,
+    --value(--color, [color]) calc(--modifier(integer) * 1%),
+    transparent
+  );
 }
 
 @utility shimmer-duration-* {

@@ -1,4 +1,10 @@
 {
+  "theme": {
+    "mode": "模式",
+    "day": "日间",
+    "night": "夜间",
+    "system": "系统"
+  },
   "premium": {
     "premium": "会员计划",
     "UpgradeNow": "现在升级"
