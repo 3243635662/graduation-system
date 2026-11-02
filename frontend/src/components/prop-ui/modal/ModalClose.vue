@@ -12,10 +12,7 @@ const { Modal } = useModal()
 </script>
 
 <template>
-  <component
-    :is="Modal.Close"
-    v-bind="props"
-  >
+  <component :is="Modal.Close" v-bind="props">
     <slot />
   </component>
 </template>

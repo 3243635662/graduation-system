@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-
 import { MilestoneIcon } from '@lucide/vue'
+import type { Component } from 'vue'
 
 const { icon } = defineProps<{
   name: string

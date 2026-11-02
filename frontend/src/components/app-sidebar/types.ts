@@ -8,15 +8,16 @@ interface BaseNavItem {
   icon?: NavIcon
 }
 
-export type NavItem
-  = | BaseNavItem & {
-    items: NavSubItem[]
-    url?: never
-    isActive?: boolean
-  } | BaseNavItem & {
-    url: string
-    items?: never
-  }
+export type NavItem =
+  | (BaseNavItem & {
+      items: NavSubItem[]
+      url?: never
+      isActive?: boolean
+    })
+  | (BaseNavItem & {
+      url: string
+      items?: never
+    })
 
 /**
  * A navigation entry as exposed by `useSidebarNavigation()`.

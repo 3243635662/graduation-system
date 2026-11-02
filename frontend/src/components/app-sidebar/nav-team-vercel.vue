@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/vue'
-
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarSeparator } from '@/components/ui/sidebar'
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from '@/components/ui/sidebar'
 import { useSidebarNavigation } from '@/composables/use-sidebar-navigation'
 import { isExternalUrl } from '@/utils/is-external-url'
-
-import type { NavGroup } from './types'
+import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/vue'
 
 import MenuButton from './menu-button.vue'
+import type { NavGroup } from './types'
 
 const { navMain } = defineProps<{
   navMain: NavGroup[]
 }>()
 
-const {
-  navigationPath,
-  currentMenuItems,
-  currentMenuTitle,
-  enterMenu,
-  goBack,
-  isMenuItemActive,
-} = useSidebarNavigation(navMain)
+const { navigationPath, currentMenuItems, currentMenuTitle, enterMenu, goBack, isMenuItemActive } =
+  useSidebarNavigation(navMain)
 
 /**
  * Handle back button click

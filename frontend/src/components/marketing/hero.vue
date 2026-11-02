@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import Autoplay from 'embla-carousel-autoplay'
-
 import { Avatar, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel'
+import Autoplay from 'embla-carousel-autoplay'
 
 const images = [
   'https://picsum.photos/640/640?random=1',
@@ -14,7 +19,7 @@ const images = [
   'https://picsum.photos/640/640?random=6',
 ]
 
-const users: { avatar: string, name: string, id: number }[] = [
+const users: { avatar: string; name: string; id: number }[] = [
   { avatar: 'https://github.com/benjamincanac.png', name: 'Benjamin Canac', id: 1 },
   { avatar: 'https://github.com/romhml.png', name: 'Benjamin Canac', id: 2 },
   { avatar: 'https://github.com/noook.png', name: 'Benjamin Canac', id: 3 },
@@ -41,12 +46,12 @@ const users: { avatar: string, name: string, id: number }[] = [
           src="@/assets/icons/arrow-dark.svg"
           alt=""
           class="dark:hidden block w-12 h-12 absolute top-[110%] left-8 -rotate-90"
-        >
+        />
         <img
           src="@/assets/icons/arrow-light.svg"
           alt=""
           class="dark:block hidden w-12 h-12 absolute top-[110%] left-8 -rotate-90"
-        >
+        />
       </div>
 
       <div class="flex items-center gap-2">
@@ -68,13 +73,15 @@ const users: { avatar: string, name: string, id: number }[] = [
           align: 'start',
           loop: true,
         }"
-        :plugins="[Autoplay({
-          delay: 2000,
-        })]"
+        :plugins="[
+          Autoplay({
+            delay: 2000,
+          }),
+        ]"
       >
         <CarouselContent>
           <CarouselItem v-for="image in images" :key="image" class="basis-1/3">
-            <img :src="image" width="320" height="320" class="rounded-lg">
+            <img :src="image" width="320" height="320" class="rounded-lg" />
           </CarouselItem>
         </CarouselContent>
         <CarouselPrevious class="hidden lg:flex" />

@@ -1,9 +1,8 @@
 import type { StandardSchemaV1 } from '@tanstack/vue-form'
-import type { z } from 'zod'
-
 import { useForm } from '@tanstack/vue-form'
 import { useStorage } from '@vueuse/core'
 import { toast } from 'vue-sonner'
+import type { z } from 'zod'
 
 import { resolveSystemConfigValue, useSystemConfigQuery } from './use-system-config-query'
 
@@ -23,7 +22,13 @@ export function useSystemConfig<S extends z.ZodObject<z.ZodRawShape>>({
   const localCacheConfig = useStorage<z.input<S>>(key, initialConfig)
   const didCreateDefault = shallowRef(false)
 
-  const { data: systemConfigData, isGetting, isPending, create: createConfig, update: updateConfig } = useSystemConfigQuery(key)
+  const {
+    data: systemConfigData,
+    isGetting,
+    isPending,
+    create: createConfig,
+    update: updateConfig,
+  } = useSystemConfigQuery(key)
 
   const form = useForm({
     defaultValues: initialConfig,
@@ -41,7 +46,11 @@ export function useSystemConfig<S extends z.ZodObject<z.ZodRawShape>>({
         {
           onSuccess: () => {
             toast('You submitted the following values:', {
-              description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(config, null, 2))),
+              description: h(
+                'pre',
+                { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+                h('code', { class: 'text-white' }, JSON.stringify(config, null, 2)),
+              ),
             })
           },
         },
@@ -49,40 +58,50 @@ export function useSystemConfig<S extends z.ZodObject<z.ZodRawShape>>({
     },
   })
 
-  watch([systemConfigData, isGetting], ([configData, loading]) => {
-    if (loading)
-      return
+  watch(
+    [systemConfigData, isGetting],
+    ([configData, loading]) => {
+      if (loading) return
 
-    const configValue = configData
-      ? resolveSystemConfigValue(configData.data.value, schema, initialConfig)
-      : null
+      const configValue = configData
+        ? resolveSystemConfigValue(configData.data.value, schema, initialConfig)
+        : null
 
-    if (!configValue) {
-      localCacheConfig.value = initialConfig
-      form.reset(initialConfig, { keepDefaultValues: true })
+      if (!configValue) {
+        localCacheConfig.value = initialConfig
+        form.reset(initialConfig, { keepDefaultValues: true })
 
-      if (didCreateDefault.value)
-        return
+        if (didCreateDefault.value) return
 
-      didCreateDefault.value = true
-      createConfig(
-        { key, description, value: JSON.stringify(initialConfig) },
-        {
-          onSuccess: () => {
-            localCacheConfig.value = initialConfig
-            toast('System config created with default value.', {
-              description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify({ key, description, value: initialConfig }, null, 2))),
-            })
+        didCreateDefault.value = true
+        createConfig(
+          { key, description, value: JSON.stringify(initialConfig) },
+          {
+            onSuccess: () => {
+              localCacheConfig.value = initialConfig
+              toast('System config created with default value.', {
+                description: h(
+                  'pre',
+                  { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+                  h(
+                    'code',
+                    { class: 'text-white' },
+                    JSON.stringify({ key, description, value: initialConfig }, null, 2),
+                  ),
+                ),
+              })
+            },
           },
-        },
-      )
-      return
-    }
+        )
+        return
+      }
 
-    didCreateDefault.value = false
-    localCacheConfig.value = configValue
-    form.reset(configValue, { keepDefaultValues: true })
-  }, { immediate: true })
+      didCreateDefault.value = false
+      localCacheConfig.value = configValue
+      form.reset(configValue, { keepDefaultValues: true })
+    },
+    { immediate: true },
+  )
 
   return {
     isPending,

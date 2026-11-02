@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { DialogRootProps } from 'reka-ui'
-import type { DrawerRootProps } from 'vaul-vue'
-
 import { useForwardPropsEmits } from 'reka-ui'
+import type { DrawerRootProps } from 'vaul-vue'
 
 import { useModal } from './use-modal'
 
@@ -19,10 +18,7 @@ const { Modal } = useModal()
 </script>
 
 <template>
-  <component
-    :is="Modal.Root"
-    v-bind="forwarded"
-  >
+  <component :is="Modal.Root" v-bind="forwarded">
     <slot />
   </component>
 </template>

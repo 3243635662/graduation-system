@@ -13,10 +13,7 @@ const { Modal } = useModal()
 </script>
 
 <template>
-  <component
-    :is="Modal.Footer"
-    v-bind="props"
-  >
+  <component :is="Modal.Footer" v-bind="props">
     <slot />
   </component>
 </template>

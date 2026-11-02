@@ -3,7 +3,6 @@ import { CommandGroup, CommandItem } from '@/components/ui/command'
 import { navData, otherPages } from '@/constants/sidebar-data'
 
 import type { NavGroup, NavItem } from '../app-sidebar/types'
-
 import CommandItemHasIcon from './command-item-has-icon.vue'
 
 const emit = defineEmits<{
@@ -16,8 +15,7 @@ function getFlatNavItems(navData: NavGroup[]): NavItem[] {
     group.items.forEach((item) => {
       if (item.items) {
         flatItems.push(...getFlatNavItems([item as unknown as NavGroup]))
-      }
-      else {
+      } else {
         flatItems.push(item)
       }
     })

@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { MenuIcon, SearchIcon } from '@lucide/vue'
-import { useEventListener } from '@vueuse/core'
-
 import { Button } from '@/components/ui/button'
-import { CommandDialog, CommandEmpty, CommandInput, CommandList, CommandSeparator } from '@/components/ui/command'
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandInput,
+  CommandList,
+  CommandSeparator,
+} from '@/components/ui/command'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { MenuIcon, SearchIcon } from '@lucide/vue'
+import { useEventListener } from '@vueuse/core'
 
 import CommandChangeTheme from './command-change-theme.vue'
 import CommandToPage from './command-to-page.vue'
@@ -23,7 +28,7 @@ function handleOpenChange() {
   open.value = !open.value
 }
 
-const firstKey = computed(() => navigator?.userAgent.includes('Mac OS') ? '⌘' : 'Ctrl')
+const firstKey = computed(() => (navigator?.userAgent.includes('Mac OS') ? '⌘' : 'Ctrl'))
 </script>
 
 <template>

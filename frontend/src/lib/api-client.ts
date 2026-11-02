@@ -1,10 +1,9 @@
+import { API_BASE_URL, API_TIMEOUT } from '@/constants/app-config'
 /**
  * ofetch: https://github.com/unjs/ofetch
  */
 import { ofetch } from 'ofetch'
 import { toast } from 'vue-sonner'
-
-import { API_BASE_URL, API_TIMEOUT } from '@/constants/app-config'
 
 /**
  * Clear the session and send the user back to sign-in when the API returns 401.
@@ -18,8 +17,7 @@ async function handleUnauthorized() {
   ])
 
   const authStore = useAuthStore(pinia)
-  if (!authStore.isLogin)
-    return
+  if (!authStore.isLogin) return
 
   authStore.isLogin = false
   toast.error('Your session has expired, please sign in again.')
@@ -31,7 +29,6 @@ export const apiFetch = ofetch.create({
   timeout: API_TIMEOUT ?? 5000,
 
   onResponseError: async ({ response }) => {
-    if (response.status === 401)
-      await handleUnauthorized()
+    if (response.status === 401) await handleUnauthorized()
   },
 })

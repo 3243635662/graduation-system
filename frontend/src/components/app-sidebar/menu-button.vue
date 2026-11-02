@@ -1,7 +1,6 @@
-<script setup lang='ts'>
-import { ExternalLinkIcon } from '@lucide/vue'
-
+<script setup lang="ts">
 import { SidebarMenuButton } from '@/components/ui/sidebar'
+import { ExternalLinkIcon } from '@lucide/vue'
 
 import type { NavSubItem } from './types'
 
@@ -14,12 +13,14 @@ defineProps<{
 </script>
 
 <template>
-  <SidebarMenuButton
-    as-child
-    :is-active="isActive"
-    :tooltip="tooltip"
-  >
-    <a v-if="isExternalUrl" :href="menu.url" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2">
+  <SidebarMenuButton as-child :is-active="isActive" :tooltip="tooltip">
+    <a
+      v-if="isExternalUrl"
+      :href="menu.url"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="flex items-center gap-2"
+    >
       <component :is="menu.icon" v-if="menu.icon" />
       <span>{{ menu.title }}</span>
       <ExternalLinkIcon class="w-4 h-4 ml-auto" />

@@ -1,6 +1,23 @@
-import { BadgeHelpIcon, BellDotIcon, BirdIcon, BoxesIcon, BugIcon, ComponentIcon, CreditCardIcon, LayoutDashboardIcon, ListTodoIcon, PaletteIcon, PictureInPicture2Icon, PodcastIcon, SettingsIcon, SquareUserRoundIcon, UserIcon, UsersIcon, WrenchIcon } from '@lucide/vue'
-
 import type { NavGroup, NavItem } from '@/components/app-sidebar/types'
+import {
+  BadgeHelpIcon,
+  BellDotIcon,
+  BirdIcon,
+  BoxesIcon,
+  BugIcon,
+  ComponentIcon,
+  CreditCardIcon,
+  LayoutDashboardIcon,
+  ListTodoIcon,
+  PaletteIcon,
+  PictureInPicture2Icon,
+  PodcastIcon,
+  SettingsIcon,
+  SquareUserRoundIcon,
+  UserIcon,
+  UsersIcon,
+  WrenchIcon,
+} from '@lucide/vue'
 
 type SidebarLink = Extract<NavItem, { url: string }>
 
@@ -56,7 +73,11 @@ export const navData: NavGroup[] = [
       { title: 'Settings', items: settingsNavItems, icon: SettingsIcon },
       { title: 'Prop Components', url: '/prop-components', icon: ComponentIcon },
       { title: 'Help Center', url: '/help-center', icon: BadgeHelpIcon },
-      { title: 'Outside Page(GitHub)', url: 'https://www.github.com/Whbbit1999/shadcn-vue-admin', icon: BirdIcon },
+      {
+        title: 'Outside Page(GitHub)',
+        url: 'https://www.github.com/Whbbit1999/shadcn-vue-admin',
+        icon: BirdIcon,
+      },
     ],
   },
 ]
@@ -64,8 +85,6 @@ export const navData: NavGroup[] = [
 export const otherPages: NavGroup[] = [
   {
     title: 'Other',
-    items: [
-      { title: 'Plans & Pricing', icon: CreditCardIcon, url: '/billing' },
-    ],
+    items: [{ title: 'Plans & Pricing', icon: CreditCardIcon, url: '/billing' }],
   },
 ]

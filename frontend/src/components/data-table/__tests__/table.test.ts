@@ -1,14 +1,12 @@
 // @vitest-environment happy-dom
 
+import { DEFAULT_PAGE_SIZE } from '@/constants/app'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import { computed, effectScope, nextTick, shallowRef } from 'vue'
 
-import { DEFAULT_PAGE_SIZE } from '@/constants/app'
-
-import type { DataTableColumnDef } from '../table'
-
 import DataTable from '../data-table.vue'
+import type { DataTableColumnDef } from '../table'
 import { useDataTable } from '../table'
 
 interface Person {
@@ -68,16 +66,18 @@ describe('useDataTable', () => {
     const scope = effectScope()
     const pagination = shallowRef({ pageIndex: 0, pageSize: 2 })
     const rowCount = shallowRef(5)
-    const table = scope.run(() => useDataTable<Person>({
-      columns,
-      data,
-      manualPagination: true,
-      rowCount,
-      state: computed(() => ({ pagination: pagination.value })),
-      onPaginationChange: (next) => {
-        pagination.value = typeof next === 'function' ? next(pagination.value) : next
-      },
-    }))!
+    const table = scope.run(() =>
+      useDataTable<Person>({
+        columns,
+        data,
+        manualPagination: true,
+        rowCount,
+        state: computed(() => ({ pagination: pagination.value })),
+        onPaginationChange: (next) => {
+          pagination.value = typeof next === 'function' ? next(pagination.value) : next
+        },
+      }),
+    )!
 
     expect(table.getRowModel().rows).toHaveLength(3)
     expect(table.getPageCount()).toBe(3)

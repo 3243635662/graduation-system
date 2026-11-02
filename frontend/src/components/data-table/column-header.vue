@@ -1,14 +1,26 @@
 <script setup lang="ts" generic="T extends RowData">
-import type { RowData } from '@tanstack/vue-table'
-
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, ChevronsUpDownIcon, EyeOffIcon, PinIcon, PinOffIcon } from '@lucide/vue'
-import { computed } from 'vue'
-
 import type { DataTableColumn } from '@/components/data-table/table'
-
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import {
+  ArrowDownIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ArrowUpIcon,
+  ChevronsUpDownIcon,
+  EyeOffIcon,
+  PinIcon,
+  PinOffIcon,
+} from '@lucide/vue'
+import type { RowData } from '@tanstack/vue-table'
+import { computed } from 'vue'
 
 interface DataTableColumnHeaderProps {
   column: DataTableColumn<T>
@@ -31,11 +43,7 @@ export default {
   <div v-if="canSorted || canPinned" :class="cn('flex items-center space-x-2', $attrs.class ?? '')">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="-ml-3 h-8 data-[state=open]:bg-accent"
-        >
+        <Button variant="ghost" size="sm" class="-ml-3 h-8 data-[state=open]:bg-accent">
           <template v-if="canPinned">
             <PinIcon v-if="props.column.getIsPinned()" class="ml-2 size-4 text-primary" />
           </template>

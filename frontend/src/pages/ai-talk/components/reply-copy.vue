@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ClipboardCheckIcon, ClipboardIcon } from '@lucide/vue'
-import { useClipboard } from '@vueuse/core'
-
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { ClipboardCheckIcon, ClipboardIcon } from '@lucide/vue'
+import { useClipboard } from '@vueuse/core'
 
 defineProps<Props>()
 

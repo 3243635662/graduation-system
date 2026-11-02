@@ -2,10 +2,9 @@
 import { useSidebar } from '@/components/ui/sidebar'
 import { useSidebarConfigStore } from '@/stores/sidebar-config'
 
-import type { NavGroup } from './types'
-
 import NavTeamCollapsible from './nav-team-collapsible.vue'
 import NavTeamVercel from './nav-team-vercel.vue'
+import type { NavGroup } from './types'
 
 const { navMain } = defineProps<{
   navMain: NavGroup[]

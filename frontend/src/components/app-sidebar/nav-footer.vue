@@ -1,15 +1,33 @@
 <script setup lang="ts">
-import { BadgeCheckIcon, BellIcon, ChevronsUpDownIcon, CreditCardIcon, LogOutIcon, SparklesIcon, UserRoundCogIcon } from '@lucide/vue'
-
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import {
+  BadgeCheckIcon,
+  BellIcon,
+  ChevronsUpDownIcon,
+  CreditCardIcon,
+  LogOutIcon,
+  SparklesIcon,
+  UserRoundCogIcon,
+} from '@lucide/vue'
 
 import type { User } from './types'
 
-const { user } = defineProps<
-  { user: User }
->()
+const { user } = defineProps<{ user: User }>()
 
 const { logout } = useAuth()
 const { isMobile } = useSidebar()
@@ -26,9 +44,7 @@ const { isMobile } = useSidebar()
           >
             <Avatar class="size-8 rounded-lg">
               <AvatarImage :src="user.avatar" :alt="user.name" />
-              <AvatarFallback class="rounded-lg">
-                CN
-              </AvatarFallback>
+              <AvatarFallback class="rounded-lg"> CN </AvatarFallback>
             </Avatar>
             <div class="grid flex-1 text-sm leading-tight text-left">
               <span class="font-semibold truncate">{{ user.name }}</span>
@@ -47,9 +63,7 @@ const { isMobile } = useSidebar()
             <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
               <Avatar class="size-8 rounded-lg">
                 <AvatarImage :src="user.avatar" :alt="user.name" />
-                <AvatarFallback class="rounded-lg">
-                  CN
-                </AvatarFallback>
+                <AvatarFallback class="rounded-lg"> CN </AvatarFallback>
               </Avatar>
               <div class="grid flex-1 text-sm leading-tight text-left">
                 <span class="font-semibold truncate">{{ user.name }}</span>

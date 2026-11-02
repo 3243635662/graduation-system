@@ -1,6 +1,5 @@
-import { storeToRefs } from 'pinia'
-
 import { useAuthStore } from '@/stores/auth'
+import { storeToRefs } from 'pinia'
 
 export function useAuth() {
   const router = useRouter()
@@ -21,7 +20,7 @@ export function useAuth() {
 
   async function login() {
     loading.value = true
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     // mock login
     isLogin.value = true
     loading.value = false
@@ -29,8 +28,7 @@ export function useAuth() {
     const redirect = router.currentRoute.value.query.redirect
     if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
       toHome()
-    }
-    else {
+    } else {
       router.push(redirect)
     }
   }

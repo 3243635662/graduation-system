@@ -1,11 +1,15 @@
 <script setup lang="ts" generic="T extends RowData">
-import type { RowData } from '@tanstack/vue-table'
-
-import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon } from '@lucide/vue'
-
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { PAGE_SIZES } from '@/constants/app'
+import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon } from '@lucide/vue'
+import type { RowData } from '@tanstack/vue-table'
 
 import type { DataTableInstance } from './table'
 
@@ -21,12 +25,10 @@ const canPreviousPage = computed(() => props.table.getCanPreviousPage())
 const canNextPage = computed(() => props.table.getCanNextPage())
 
 function handlePageSizeChange(value: unknown) {
-  if (typeof value !== 'string' && typeof value !== 'number')
-    return
+  if (typeof value !== 'string' && typeof value !== 'number') return
 
   const newPageSize = Number(value)
-  if (Number.isFinite(newPageSize) && newPageSize > 0)
-    props.table.setPageSize(newPageSize)
+  if (Number.isFinite(newPageSize) && newPageSize > 0) props.table.setPageSize(newPageSize)
 }
 </script>
 
@@ -35,13 +37,8 @@ function handlePageSizeChange(value: unknown) {
     <div class="flex-1" />
     <div class="flex items-center space-x-6 lg:space-x-8">
       <div class="flex items-center space-x-2">
-        <p class="hidden text-sm font-medium line-clamp-1 md:block">
-          Rows per page
-        </p>
-        <Select
-          :model-value="`${currentPageSize}`"
-          @update:model-value="handlePageSizeChange"
-        >
+        <p class="hidden text-sm font-medium line-clamp-1 md:block">Rows per page</p>
+        <Select :model-value="`${currentPageSize}`" @update:model-value="handlePageSizeChange">
           <SelectTrigger class="h-8 w-[70px]">
             <SelectValue :placeholder="`${currentPageSize}`" />
           </SelectTrigger>

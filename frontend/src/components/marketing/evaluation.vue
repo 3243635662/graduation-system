@@ -6,37 +6,37 @@ const reviews = [
   {
     name: 'Jack',
     username: '@jack',
-    body: 'I\'ve never seen anything like this before. It\'s amazing. I love it.',
+    body: "I've never seen anything like this before. It's amazing. I love it.",
     img: 'https://avatar.vercel.sh/jack',
   },
   {
     name: 'Jill',
     username: '@jill',
-    body: 'I don\'t know what to say. I\'m speechless. This is amazing.',
+    body: "I don't know what to say. I'm speechless. This is amazing.",
     img: 'https://avatar.vercel.sh/jill',
   },
   {
     name: 'John',
     username: '@john',
-    body: 'I\'m at a loss for words. This is amazing. I love it.',
+    body: "I'm at a loss for words. This is amazing. I love it.",
     img: 'https://avatar.vercel.sh/john',
   },
   {
     name: 'Jane',
     username: '@jane',
-    body: 'I\'m at a loss for words. This is amazing. I love it.',
+    body: "I'm at a loss for words. This is amazing. I love it.",
     img: 'https://avatar.vercel.sh/jane',
   },
   {
     name: 'Jenny',
     username: '@jenny',
-    body: 'I\'m at a loss for words. This is amazing. I love it.',
+    body: "I'm at a loss for words. This is amazing. I love it.",
     img: 'https://avatar.vercel.sh/jenny',
   },
   {
     name: 'James',
     username: '@james',
-    body: 'I\'m at a loss for words. This is amazing. I love it.',
+    body: "I'm at a loss for words. This is amazing. I love it.",
     img: 'https://avatar.vercel.sh/james',
   },
 ]
@@ -53,9 +53,7 @@ const secondRow = ref(reviews.slice(reviews.length / 2))
   <h4 class="text-center mb-4">
     {{ $t('marketing.evaluation.subtitle') }}
   </h4>
-  <div
-    class="relative flex w-full flex-col items-center justify-center overflow-hidden"
-  >
+  <div class="relative flex w-full flex-col items-center justify-center overflow-hidden">
     <Marquee pause-on-hover class="[--duration:50s]">
       <MarqueeReviewCard
         v-for="review in firstRow"

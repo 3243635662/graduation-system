@@ -1,19 +1,11 @@
 <script setup lang="ts">
-import type { HTMLAttributes } from 'vue'
-
+import type { ButtonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { CopyCheckIcon, CopyIcon } from '@lucide/vue'
 import { useClipboard } from '@vueuse/core'
-
-import type { ButtonVariants } from '@/components/ui/button'
-
-import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import type { HTMLAttributes } from 'vue'
 
 interface Props {
   content: string
