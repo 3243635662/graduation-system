@@ -32,5 +32,8 @@ pnpm-debug.log*
 !.vscode/mcp.json
 .idea/
 .DS_Store
+Thumbs.db
+desktop.ini
 *.suo
 *.sw?
+*.local

@@ -30,3 +30,12 @@ yarn-error.log*
 .idea/
 .DS_Store
 *.swp
+
+# AI tooling: locally generated skills and agent config
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
+
+# prisma generated client (schema 中 output = ../generated/prisma)
+/generated/
