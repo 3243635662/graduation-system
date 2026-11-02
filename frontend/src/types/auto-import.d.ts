@@ -16,6 +16,7 @@ declare global {
   const HOME_PATH: typeof import('../constants/app').HOME_PATH
   const LOGIN_PATH: typeof import('../constants/app').LOGIN_PATH
   const PAGE_SIZES: typeof import('../constants/app').PAGE_SIZES
+  const SELECTED_OPTION_CLASS: typeof import('../constants/themes').SELECTED_OPTION_CLASS
   const THEMES: typeof import('../constants/themes').THEMES
   const THEME_PRIMARY_COLORS: typeof import('../constants/themes').THEME_PRIMARY_COLORS
   const computed: typeof import('vue').computed

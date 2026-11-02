@@ -15,10 +15,15 @@ const mode = useColorMode()
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button variant="outline" size="icon-sm" aria-label="Toggle mode" title="Toggle mode">
+      <Button
+        variant="outline"
+        size="icon-sm"
+        :aria-label="$t('toggleMode')"
+        :title="$t('toggleMode')"
+      >
         <SunIcon class="rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
         <MoonIcon class="absolute rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        <span class="sr-only">Toggle mode</span>
+        <span class="sr-only">{{ $t('toggleMode') }}</span>
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">

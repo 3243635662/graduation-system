@@ -1,33 +1,32 @@
 <script setup lang="ts">
-import { ChevronRightIcon, LayoutListIcon } from '@lucide/vue'
-import { storeToRefs } from 'pinia'
-
-import type { NavigationMode } from '@/stores/sidebar-config'
-
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { SELECTED_OPTION_CLASS } from '@/constants/themes'
+import type { NavigationMode } from '@/stores/sidebar-config'
 import { useSidebarConfigStore } from '@/stores/sidebar-config'
+import { ChevronRightIcon, LayoutListIcon } from '@lucide/vue'
+import { storeToRefs } from 'pinia'
 
 const sidebarConfigStore = useSidebarConfigStore()
 const { navigationMode } = storeToRefs(sidebarConfigStore)
 
 const menuStyles: Array<{
   value: NavigationMode
-  label: string
+  labelKey: string
   icon: any
-  description: string
+  descriptionKey: string
 }> = [
   {
     value: 'collapsible',
-    label: 'Collapsible',
+    labelKey: 'theme.menuStyleCollapsible',
     icon: LayoutListIcon,
-    description: 'Traditional collapsible menu',
+    descriptionKey: 'theme.menuStyleCollapsibleDesc',
   },
   {
     value: 'vercel',
-    label: 'Vercel Style',
+    labelKey: 'theme.menuStyleVercel',
     icon: ChevronRightIcon,
-    description: 'Click to navigate to the next level',
+    descriptionKey: 'theme.menuStyleVercelDesc',
   },
 ]
 
@@ -39,7 +38,7 @@ function handleMenuStyleChange(style: NavigationMode) {
 <template>
   <div class="space-y-1.5 pt-6">
     <Label for="menu-style" class="text-xs">
-      Menu Style
+      {{ $t('theme.menuStyle') }}
     </Label>
     <div class="grid grid-cols-2 gap-2 py-1.5">
       <Button
@@ -47,12 +46,12 @@ function handleMenuStyleChange(style: NavigationMode) {
         :key="style.value"
         variant="outline"
         class="justify-center h-8 px-3"
-        :class="navigationMode === style.value ? 'border-foreground border-2' : ''"
-        :title="style.description"
+        :class="navigationMode === style.value ? SELECTED_OPTION_CLASS : ''"
+        :title="$t(style.descriptionKey)"
         @click="handleMenuStyleChange(style.value)"
       >
         <component :is="style.icon" class="w-4 h-4" />
-        {{ style.label }}
+        {{ $t(style.labelKey) }}
       </Button>
     </div>
   </div>

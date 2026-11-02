@@ -3,8 +3,32 @@
     "mode": "模式",
     "day": "日间",
     "night": "夜间",
-    "system": "系统"
+    "system": "系统",
+    "customize": "自定义",
+    "customizeDesc": "为你的组件挑选样式和主题色。",
+    "theme": "主题",
+    "names": {
+      "zinc": "默认锌灰",
+      "soft-pop": "柔和波普",
+      "twitter": "蔚蓝推特",
+      "nature": "自然温和",
+      "claude": "克劳德橙",
+      "blossom": "樱粉微光"
+    },
+    "contentLayout": "内容布局",
+    "layout": {
+      "full": "通栏",
+      "centered": "居中"
+    },
+    "menuStyle": "菜单样式",
+    "menuStyleCollapsible": "折叠式",
+    "menuStyleCollapsibleDesc": "传统的可折叠菜单",
+    "menuStyleVercel": "Vercel 风格",
+    "menuStyleVercelDesc": "点击进入下一级导航"
   },
+  "changeLanguage": "切换语言",
+  "toggleMode": "切换模式",
+  "customizeTheme": "切换主题",
   "premium": {
     "premium": "会员计划",
     "UpgradeNow": "现在升级"

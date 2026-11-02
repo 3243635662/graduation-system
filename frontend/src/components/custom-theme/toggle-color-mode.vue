@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { SELECTED_OPTION_CLASS } from '@/constants/themes'
 import { MoonIcon, SunIcon, SunMoonIcon } from '@lucide/vue'
 import type { BasicColorSchema } from '@vueuse/core'
 import { useColorMode } from '@vueuse/core'
@@ -34,7 +35,7 @@ function setColorMode(colorMode: BasicColorSchema) {
         :key="item.colorMode"
         variant="outline"
         class="justify-center items-center h-8 px-3"
-        :class="item.colorMode === mode ? 'border-foreground border-2' : ''"
+        :class="item.colorMode === mode ? SELECTED_OPTION_CLASS : ''"
         @click="setColorMode(item.colorMode)"
       >
         <component :is="item.icon" />

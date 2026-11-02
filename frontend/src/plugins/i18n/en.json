@@ -3,8 +3,32 @@
     "mode": "Mode",
     "day": "Light",
     "night": "Dark",
-    "system": "System"
+    "system": "System",
+    "customize": "Customize",
+    "customizeDesc": "Pick a style and color for your components.",
+    "theme": "Theme",
+    "names": {
+      "zinc": "Zinc",
+      "soft-pop": "Soft Pop",
+      "twitter": "Twitter",
+      "nature": "Nature",
+      "claude": "Claude",
+      "blossom": "Blossom"
+    },
+    "contentLayout": "Content Layout",
+    "layout": {
+      "full": "Full",
+      "centered": "Centered"
+    },
+    "menuStyle": "Menu Style",
+    "menuStyleCollapsible": "Collapsible",
+    "menuStyleCollapsibleDesc": "Traditional collapsible menu",
+    "menuStyleVercel": "Vercel Style",
+    "menuStyleVercelDesc": "Click to navigate to the next level"
   },
+  "changeLanguage": "Change language",
+  "toggleMode": "Toggle mode",
+  "customizeTheme": "Switch theme",
   "premium": {
     "premium": "premium",
     "UpgradeNow": "Upgrade Now"

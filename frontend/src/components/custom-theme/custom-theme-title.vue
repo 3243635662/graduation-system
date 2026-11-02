@@ -1,14 +1,10 @@
-<script setup lang="ts">
-
-</script>
-
 <template>
   <div class="grid space-y-1">
     <h1 class="font-semibold text-md text-foreground">
-      Customize
+      {{ $t('theme.customize') }}
     </h1>
     <p class="text-xs text-muted-foreground">
-      Pick a style and color for your components.
+      {{ $t('theme.customizeDesc') }}
     </p>
   </div>
 </template>

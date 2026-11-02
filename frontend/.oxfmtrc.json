@@ -14,11 +14,5 @@
     "newlinesBetween": true,
     "sortSideEffects": false
   },
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/dist/**",
-    "**/build/**",
-    "**/coverage/**",
-    "src/components/ui/**" // 这个组件库的源码先不需要更新，等需要更新的时候再更新
-  ]
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/coverage/**"]
 }
