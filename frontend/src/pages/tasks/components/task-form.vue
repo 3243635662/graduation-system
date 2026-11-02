@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { useForm } from '@tanstack/vue-form'
-import { toast } from 'vue-sonner'
-
 import { Button } from '@/components/ui/button'
 import { FieldError } from '@/components/ui/field'
 import { FormItem } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-
-import type { Task } from '../data/schema'
-import type { TaskValidator } from '../validators/task.validator'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useForm } from '@tanstack/vue-form'
+import { toast } from 'vue-sonner'
 
 import { labels, priorities, statuses } from '../data/data'
+import type { Task } from '../data/schema'
+import type { TaskValidator } from '../validators/task.validator'
 import { taskValidator } from '../validators/task.validator'
 
 const props = defineProps<{
@@ -40,15 +45,22 @@ const form = useForm({
   },
   onSubmit: ({ value }) => {
     toast('You submitted the following values:', {
-      description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(value, null, 2))),
+      description: h(
+        'pre',
+        { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+        h('code', { class: 'text-white' }, JSON.stringify(value, null, 2)),
+      ),
     })
     emits('close')
   },
 })
 
-watch(() => props.task, (task) => {
-  form.reset(getInitialValues(task), { keepDefaultValues: true })
-})
+watch(
+  () => props.task,
+  (task) => {
+    form.reset(getInitialValues(task), { keepDefaultValues: true })
+  },
+)
 </script>
 
 <template>
@@ -107,7 +119,8 @@ watch(() => props.task, (task) => {
               @update:model-value="(v) => field.handleChange(v as string)"
             >
               <FormItem
-                v-for="label in labels" :key="label.value"
+                v-for="label in labels"
+                :key="label.value"
                 class="flex items-center space-y-0 gap-x-3"
               >
                 <RadioGroupItem :value="label.value" />
@@ -130,7 +143,8 @@ watch(() => props.task, (task) => {
               @update:model-value="(v) => field.handleChange(v as string)"
             >
               <FormItem
-                v-for="priority in priorities" :key="priority.value"
+                v-for="priority in priorities"
+                :key="priority.value"
                 class="flex items-center space-y-0 gap-x-3"
               >
                 <RadioGroupItem :value="priority.value" />
@@ -144,9 +158,7 @@ watch(() => props.task, (task) => {
         </template>
       </form.Field>
 
-      <Button type="submit">
-        Submit
-      </Button>
+      <Button type="submit"> Submit </Button>
     </form>
   </div>
 </template>

@@ -9,10 +9,9 @@ export const profileValidator = z.object({
     .max(30, {
       error: 'Username must not be longer than 30 characters.',
     }),
-  email: z
-    .email({
-      error: 'Please select an email to display.',
-    }),
+  email: z.email({
+    error: 'Please select an email to display.',
+  }),
   bio: z
     .string()
     .max(160, { error: 'Bio must not be longer than 160 characters.' })

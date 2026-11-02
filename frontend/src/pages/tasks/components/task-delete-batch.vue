@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { toast } from 'vue-sonner'
-
-import type { DataTableInstance } from '@/components/data-table'
-
 import ConfirmDialog from '@/components/confirm-dialog.vue'
+import type { DataTableInstance } from '@/components/data-table'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toast } from 'vue-sonner'
 
 import type { Task } from '../data/schema'
 
@@ -33,7 +31,7 @@ function handleConfirm() {
   const deletedCount = selectedCount.value
   openModel.value = false
 
-  toast.promise(new Promise(resolve => setTimeout(resolve, 2000)), {
+  toast.promise(new Promise((resolve) => setTimeout(resolve, 2000)), {
     loading: 'Deleting tasks...',
     success: () => {
       table.resetRowSelection()
@@ -52,11 +50,9 @@ function handleConfirm() {
     :disabled="confirmValue.trim() !== CONFIRM_WORD"
     @confirm="handleConfirm"
   >
-    <template #title>
-      Delete {{ selectedCount }} tasks?
-    </template>
+    <template #title> Delete {{ selectedCount }} tasks? </template>
     <template #description>
-      Are you sure you want to delete the selected tasks? <br>
+      Are you sure you want to delete the selected tasks? <br />
       This action cannot be undone.
     </template>
 

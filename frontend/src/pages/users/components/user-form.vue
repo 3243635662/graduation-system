@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { useForm } from '@tanstack/vue-form'
-import { toast } from 'vue-sonner'
-
 import { Button } from '@/components/ui/button'
 import { FieldError } from '@/components/ui/field'
 import { FormItem } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useForm } from '@tanstack/vue-form'
+import { toast } from 'vue-sonner'
 
 import type { User } from '../data/schema'
-import type { UserValidator } from '../validators/user.validator'
-
 import { userRoles, userStatus } from '../data/schema'
+import type { UserValidator } from '../validators/user.validator'
 import { userValidator } from '../validators/user.validator'
 
 const props = defineProps<{
@@ -55,9 +60,12 @@ const form = useForm({
   },
 })
 
-watch(() => props.user, (user) => {
-  form.reset(getInitialValues(user), { keepDefaultValues: true })
-})
+watch(
+  () => props.user,
+  (user) => {
+    form.reset(getInitialValues(user), { keepDefaultValues: true })
+  },
+)
 </script>
 
 <template>
@@ -66,7 +74,10 @@ watch(() => props.user, (user) => {
       <form.Field name="firstName">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               First Name
             </Label>
             <Input
@@ -82,7 +93,10 @@ watch(() => props.user, (user) => {
       <form.Field name="lastName">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               Last Name
             </Label>
             <Input
@@ -98,7 +112,10 @@ watch(() => props.user, (user) => {
       <form.Field name="username">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               User Name
             </Label>
             <Input
@@ -115,7 +132,10 @@ watch(() => props.user, (user) => {
       <form.Field name="email">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               Email address
             </Label>
             <Input
@@ -132,7 +152,10 @@ watch(() => props.user, (user) => {
       <form.Field name="phoneNumber">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               Phone Number
             </Label>
             <Input
@@ -149,15 +172,20 @@ watch(() => props.user, (user) => {
       <form.Field name="status">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               Status
             </Label>
             <Select
               :model-value="field.state.value"
-              @update:model-value="(v:any) => {
-                field.handleChange(v)
-                field.handleBlur()
-              }"
+              @update:model-value="
+                (v: any) => {
+                  field.handleChange(v)
+                  field.handleBlur()
+                }
+              "
             >
               <SelectTrigger class="w-full">
                 <SelectValue placeholder="Select a status" />
@@ -177,15 +205,20 @@ watch(() => props.user, (user) => {
       <form.Field name="role">
         <template #default="{ field, state }">
           <FormItem>
-            <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+            <Label
+              :data-error="!!state.meta.errors?.length"
+              class="data-[error=true]:text-destructive"
+            >
               Role
             </Label>
             <Select
               :model-value="field.state.value"
-              @update:model-value="(v: any) => {
-                field.handleChange(v)
-                field.handleBlur()
-              }"
+              @update:model-value="
+                (v: any) => {
+                  field.handleChange(v)
+                  field.handleBlur()
+                }
+              "
             >
               <SelectTrigger class="w-full">
                 <SelectValue placeholder="Select a role" />
@@ -203,9 +236,7 @@ watch(() => props.user, (user) => {
         </template>
       </form.Field>
 
-      <Button type="submit" class="w-full">
-        SaveChanges
-      </Button>
+      <Button type="submit" class="w-full"> SaveChanges </Button>
     </form>
   </div>
 </template>

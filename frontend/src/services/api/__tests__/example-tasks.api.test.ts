@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ITask } from '../example-tasks.api'
-
 import { createTask, deleteTask, fetchTaskById, fetchTasks, updateTask } from '../example-tasks.api'
 
 const apiFetch = vi.hoisted(() => vi.fn())

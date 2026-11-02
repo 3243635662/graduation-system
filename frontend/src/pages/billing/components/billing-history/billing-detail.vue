@@ -1,11 +1,9 @@
 <script setup lang="ts">
+import { ModalDescription, ModalHeader, ModalTitle } from '@/components/prop-ui/modal'
 import { VisuallyHidden } from 'reka-ui'
 
-import { ModalDescription, ModalHeader, ModalTitle } from '@/components/prop-ui/modal'
-
-import type { Billing } from './data/schema'
-
 import TransactionCard from '../transaction-card/index.vue'
+import type { Billing } from './data/schema'
 
 defineProps<{
   billing: Billing

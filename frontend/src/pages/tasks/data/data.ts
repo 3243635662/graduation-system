@@ -1,4 +1,13 @@
-import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, CircleCheckIcon, CircleHelpIcon, CircleIcon, CirclePlusIcon, TimerOffIcon } from '@lucide/vue'
+import {
+  ArrowDownIcon,
+  ArrowRightIcon,
+  ArrowUpIcon,
+  CircleCheckIcon,
+  CircleHelpIcon,
+  CircleIcon,
+  CirclePlusIcon,
+  TimerOffIcon,
+} from '@lucide/vue'
 
 export const labels = [
   {

@@ -1,17 +1,25 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-
-import { EllipsisIcon, FilePenLineIcon, Trash2Icon } from '@lucide/vue'
-
 import type { DataTableRow } from '@/components/data-table'
-
 import { Modal, ModalContent } from '@/components/prop-ui/modal'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-
-import type { Task } from '../data/schema'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { EllipsisIcon, FilePenLineIcon, Trash2Icon } from '@lucide/vue'
+import type { Component } from 'vue'
 
 import { labels } from '../data/data'
+import type { Task } from '../data/schema'
 import { taskSchema } from '../data/schema'
 import TaskResourceDialog from './task-resource-dialog.vue'
 
@@ -30,8 +38,7 @@ const showComponent = shallowRef<Component | null>(null)
 type TCommand = 'edit' | 'delete'
 
 async function loadComponent(command: TCommand): Promise<Component> {
-  if (command === 'edit')
-    return TaskResourceDialog
+  if (command === 'edit') return TaskResourceDialog
 
   const { default: component } = await import('./task-delete.vue')
   return component
@@ -41,8 +48,7 @@ async function handleSelect(command: TCommand) {
   try {
     showComponent.value = await loadComponent(command)
     isOpen.value = true
-  }
-  catch (e) {
+  } catch (e) {
     console.error(`Failed to load component for "${command}"`, e)
   }
 }
@@ -52,10 +58,7 @@ async function handleSelect(command: TCommand) {
   <Modal v-model:open="isOpen">
     <DropdownMenu>
       <DropdownMenuTrigger as-child>
-        <Button
-          variant="ghost"
-          class="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
-        >
+        <Button variant="ghost" class="flex h-8 w-8 p-0 data-[state=open]:bg-muted">
           <EllipsisIcon class="size-4" />
           <span class="sr-only">Open menu</span>
         </Button>
@@ -66,12 +69,8 @@ async function handleSelect(command: TCommand) {
           <DropdownMenuShortcut> <FilePenLineIcon class="size-4" /> </DropdownMenuShortcut>
         </DropdownMenuItem>
 
-        <DropdownMenuItem disabled>
-          Make a copy
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled>
-          Favorite
-        </DropdownMenuItem>
+        <DropdownMenuItem disabled> Make a copy </DropdownMenuItem>
+        <DropdownMenuItem disabled> Favorite </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 
@@ -79,7 +78,11 @@ async function handleSelect(command: TCommand) {
           <DropdownMenuSubTrigger>Labels</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             <DropdownMenuRadioGroup v-model="taskLabel">
-              <DropdownMenuRadioItem v-for="label in labels" :key="label.value" :value="label.value">
+              <DropdownMenuRadioItem
+                v-for="label in labels"
+                :key="label.value"
+                :value="label.value"
+              >
                 {{ label.label }}
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>

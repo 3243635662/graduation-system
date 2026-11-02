@@ -94,7 +94,7 @@ export const chartData = [
   { date: new Date('2024-06-30'), desktop: 446, mobile: 400 },
 ]
 
-export type OverviewChartData = typeof chartData[number]
+export type OverviewChartData = (typeof chartData)[number]
 
 export const chartConfig = {
   mobile: {

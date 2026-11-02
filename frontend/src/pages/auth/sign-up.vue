@@ -18,14 +18,12 @@ import TermsOfServiceButton from './components/terms-of-service-button.vue'
       <AuthTitle />
       <Card class="max-w-sm mx-auto">
         <CardHeader>
-          <CardTitle class="text-xl">
-            Sign Up
-          </CardTitle>
+          <CardTitle class="text-xl"> Sign Up </CardTitle>
           <CardDescription>
-            Enter your email and password to create an account.
-            Already have an account?
+            Enter your email and password to create an account. Already have an account?
             <Button
-              variant="link" class="px-0 text-muted-foreground"
+              variant="link"
+              class="px-0 text-muted-foreground"
               @click="$router.push('/auth/sign-in')"
             >
               Sign In
@@ -36,44 +34,27 @@ import TermsOfServiceButton from './components/terms-of-service-button.vue'
           <div class="grid gap-4">
             <div class="grid grid-cols-2 gap-4">
               <div class="grid gap-2">
-                <Label for="first-name">
-                  First name
-                </Label>
+                <Label for="first-name"> First name </Label>
                 <Input id="first-name" placeholder="Max" required />
               </div>
               <div class="grid gap-2">
-                <Label for="last-name">
-                  Last name
-                </Label>
+                <Label for="last-name"> Last name </Label>
                 <Input id="last-name" placeholder="Robinson" required />
               </div>
             </div>
             <div class="grid gap-2">
-              <Label for="email">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                required
-              />
+              <Label for="email"> Email </Label>
+              <Input id="email" type="email" placeholder="m@example.com" required />
             </div>
             <div class="grid gap-2">
-              <Label for="password">
-                Password
-              </Label>
+              <Label for="password"> Password </Label>
               <Input id="password" type="password" placeholder="******" />
             </div>
             <div class="grid gap-2">
-              <Label for="password">
-                Confirm Password
-              </Label>
+              <Label for="password"> Confirm Password </Label>
               <Input id="password" type="password" placeholder="******" />
             </div>
-            <Button type="submit" class="w-full">
-              Create Account
-            </Button>
+            <Button type="submit" class="w-full"> Create Account </Button>
 
             <Separator label="Or continue with" />
 

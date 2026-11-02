@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { useForm } from '@tanstack/vue-form'
-import { toast } from 'vue-sonner'
-
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FieldDescription, FieldError } from '@/components/ui/field'
 import { FormItem } from '@/components/ui/form'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { useForm } from '@tanstack/vue-form'
+import { toast } from 'vue-sonner'
 
 const items = [
   {
@@ -42,7 +41,11 @@ const form = useForm({
   },
   onSubmit: ({ value }) => {
     toast('You submitted the following values:', {
-      description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(value, null, 2))),
+      description: h(
+        'pre',
+        { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+        h('code', { class: 'text-white' }, JSON.stringify(value, null, 2)),
+      ),
     })
   },
 })
@@ -50,9 +53,7 @@ const form = useForm({
 
 <template>
   <div>
-    <h3 class="text-lg font-medium">
-      Display
-    </h3>
+    <h3 class="text-lg font-medium">Display</h3>
     <p class="text-sm text-muted-foreground">
       Turn items on or off to control what's displayed in the app.
     </p>
@@ -63,9 +64,7 @@ const form = useForm({
       <template #default="{ field, state }">
         <FormItem>
           <div class="mb-4">
-            <Label class="text-base">
-              Sidebar
-            </Label>
+            <Label class="text-base"> Sidebar </Label>
             <FieldDescription>
               Select the items you want to display in the sidebar.
             </FieldDescription>
@@ -75,10 +74,14 @@ const form = useForm({
             <FormItem class="flex flex-row items-start space-x-3 space-y-0">
               <Checkbox
                 :model-value="(field.state.value as string[]).includes(item.id)"
-                @update:model-value="(checked: boolean | 'indeterminate') => {
-                  const current = [...field.state.value as string[]]
-                  field.handleChange(checked ? [...current, item.id] : current.filter(id => id !== item.id))
-                }"
+                @update:model-value="
+                  (checked: boolean | 'indeterminate') => {
+                    const current = [...(field.state.value as string[])]
+                    field.handleChange(
+                      checked ? [...current, item.id] : current.filter((id) => id !== item.id),
+                    )
+                  }
+                "
               />
               <Label class="font-normal">
                 {{ item.label }}
@@ -91,9 +94,7 @@ const form = useForm({
     </form.Field>
 
     <div class="flex justify-start mt-4">
-      <Button type="submit">
-        Update display
-      </Button>
+      <Button type="submit"> Update display </Button>
     </div>
   </form>
 </template>

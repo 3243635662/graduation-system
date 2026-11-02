@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { Trash2Icon } from '@lucide/vue'
-
 import type { DataTableToolbarFilter } from '@/components/data-table'
-
 import { DataTable, DataTableBulkActions, DataTableToolbar } from '@/components/data-table'
 import { BasicPage } from '@/components/global-layout'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Trash2Icon } from '@lucide/vue'
 
 import { columns } from './components/columns'
 import TaskCreate from './components/task-create.vue'
@@ -24,11 +22,7 @@ const filters = [
 </script>
 
 <template>
-  <BasicPage
-    title="Tasks"
-    description="Tasks description"
-    sticky
-  >
+  <BasicPage title="Tasks" description="Tasks description" sticky>
     <template #actions>
       <TaskImport />
       <TaskCreate />
@@ -64,10 +58,7 @@ const filters = [
             </TooltipContent>
           </Tooltip>
 
-          <TaskDeleteBatch
-            v-model:open="taskDeleteBatchOpen"
-            :table="table"
-          />
+          <TaskDeleteBatch v-model:open="taskDeleteBatchOpen" :table="table" />
         </DataTableBulkActions>
       </template>
     </DataTable>

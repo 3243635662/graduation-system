@@ -11,8 +11,8 @@ import LoginForm from './components/login-form.vue'
         alt="Image"
         width="1920"
         height="1080"
-        class="h-full w-full object-cover dark:brightness-[0.3] dark:grayscale absolute left-0 top-0 "
-      >
+        class="h-full w-full object-cover dark:brightness-[0.3] dark:grayscale absolute left-0 top-0"
+      />
       <AuthTitle class="absolute z-10 left-8 top-8" />
     </div>
 

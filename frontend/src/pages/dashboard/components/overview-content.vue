@@ -9,9 +9,7 @@ import RecentSales from './recent-sales.vue'
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <Card>
       <CardHeader class="flex flex-row items-center justify-between pb-2 space-y-0">
-        <CardTitle class="text-sm font-medium">
-          Total Revenue
-        </CardTitle>
+        <CardTitle class="text-sm font-medium"> Total Revenue </CardTitle>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -26,19 +24,13 @@ import RecentSales from './recent-sales.vue'
         </svg>
       </CardHeader>
       <CardContent>
-        <div class="text-2xl font-bold">
-          $45,231.89
-        </div>
-        <p class="text-xs text-muted-foreground">
-          +20.1% from last month
-        </p>
+        <div class="text-2xl font-bold">$45,231.89</div>
+        <p class="text-xs text-muted-foreground">+20.1% from last month</p>
       </CardContent>
     </Card>
     <Card>
       <CardHeader class="flex flex-row items-center justify-between pb-2 space-y-0">
-        <CardTitle class="text-sm font-medium">
-          Subscriptions
-        </CardTitle>
+        <CardTitle class="text-sm font-medium"> Subscriptions </CardTitle>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -55,19 +47,13 @@ import RecentSales from './recent-sales.vue'
         </svg>
       </CardHeader>
       <CardContent>
-        <div class="text-2xl font-bold">
-          +2350
-        </div>
-        <p class="text-xs text-muted-foreground">
-          +180.1% from last month
-        </p>
+        <div class="text-2xl font-bold">+2350</div>
+        <p class="text-xs text-muted-foreground">+180.1% from last month</p>
       </CardContent>
     </Card>
     <Card>
       <CardHeader class="flex flex-row items-center justify-between pb-2 space-y-0">
-        <CardTitle class="text-sm font-medium">
-          Sales
-        </CardTitle>
+        <CardTitle class="text-sm font-medium"> Sales </CardTitle>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -83,19 +69,13 @@ import RecentSales from './recent-sales.vue'
         </svg>
       </CardHeader>
       <CardContent>
-        <div class="text-2xl font-bold">
-          +12,234
-        </div>
-        <p class="text-xs text-muted-foreground">
-          +19% from last month
-        </p>
+        <div class="text-2xl font-bold">+12,234</div>
+        <p class="text-xs text-muted-foreground">+19% from last month</p>
       </CardContent>
     </Card>
     <Card>
       <CardHeader class="flex flex-row items-center justify-between pb-2 space-y-0">
-        <CardTitle class="text-sm font-medium">
-          Active Now
-        </CardTitle>
+        <CardTitle class="text-sm font-medium"> Active Now </CardTitle>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
@@ -110,12 +90,8 @@ import RecentSales from './recent-sales.vue'
         </svg>
       </CardHeader>
       <CardContent>
-        <div class="text-2xl font-bold">
-          +573
-        </div>
-        <p class="text-xs text-muted-foreground">
-          +201 since last hour
-        </p>
+        <div class="text-2xl font-bold">+573</div>
+        <p class="text-xs text-muted-foreground">+201 since last hour</p>
       </CardContent>
     </Card>
   </div>
@@ -125,9 +101,7 @@ import RecentSales from './recent-sales.vue'
     <Card class="col-span-1 lg:col-span-3">
       <CardHeader>
         <CardTitle>Recent Sales</CardTitle>
-        <CardDescription>
-          You made 265 sales this month.
-        </CardDescription>
+        <CardDescription> You made 265 sales this month. </CardDescription>
       </CardHeader>
       <CardContent>
         <RecentSales />

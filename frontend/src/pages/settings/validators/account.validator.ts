@@ -11,14 +11,11 @@ export const accountValidator = z.object({
     .max(30, {
       error: 'Name must not be longer than 30 characters.',
     }),
-  dob: z
-    .iso
+  dob: z.iso
     .datetime()
     .optional()
-    .refine(date => date !== undefined, 'Please select a valid date.'),
-  language: z
-    .string()
-    .min(1, 'Please select a language.'),
+    .refine((date) => date !== undefined, 'Please select a valid date.'),
+  language: z.string().min(1, 'Please select a language.'),
 })
 
 export type AccountValidator = z.infer<typeof accountValidator>
