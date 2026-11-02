@@ -20,15 +20,18 @@ const ERROR_PAGE_MAP: Record<ErrorCode, ErrorPageContent> = {
   },
   404: {
     subtitle: 'Page Not Found',
-    error: 'The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.',
+    error:
+      'The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.',
   },
   500: {
     subtitle: 'Internal Server Error',
-    error: 'The server encountered an unexpected condition which prevented it from fulfilling the request.',
+    error:
+      'The server encountered an unexpected condition which prevented it from fulfilling the request.',
   },
   503: {
     subtitle: 'Service Unavailable',
-    error: 'The server is currently unable to handle the request due to a temporary overloading or maintenance of the server.',
+    error:
+      'The server is currently unable to handle the request due to a temporary overloading or maintenance of the server.',
   },
 }
 

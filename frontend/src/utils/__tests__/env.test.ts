@@ -1,6 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
 import { EnvSchema } from '@/validators/env.validator'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('envSchema validation', () => {
   describe('valid environment variables', () => {

@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import type { DialogContentEmits, DialogContentProps } from 'reka-ui'
-import type { HTMLAttributes } from 'vue'
-
-import { useForwardPropsEmits } from 'reka-ui'
-
 import { cn } from '@/lib/utils'
+import type { DialogContentEmits, DialogContentProps } from 'reka-ui'
+import { useForwardPropsEmits } from 'reka-ui'
+import type { HTMLAttributes } from 'vue'
 
 import { useModal } from './use-modal'
 
@@ -19,11 +17,7 @@ const mergedClass = computed(() => cn(contentClass.value, props.class))
 </script>
 
 <template>
-  <component
-    :is="Modal.Content"
-    v-bind="forwarded"
-    :class="mergedClass"
-  >
+  <component :is="Modal.Content" v-bind="forwarded" :class="mergedClass">
     <slot />
   </component>
 </template>

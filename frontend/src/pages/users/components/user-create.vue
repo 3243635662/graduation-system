@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { UserRoundPlusIcon } from '@lucide/vue'
-
 import { Modal, ModalContent, ModalTrigger } from '@/components/prop-ui/modal'
 import { Button } from '@/components/ui/button'
+import { UserRoundPlusIcon } from '@lucide/vue'
 
 import UserResource from './user-resource.vue'
 

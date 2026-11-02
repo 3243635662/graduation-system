@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { CalendarDate, DateFormatter, getLocalTimeZone, today } from '@internationalized/date'
-import { CalendarDaysIcon, CheckIcon, ChevronsUpDownIcon } from '@lucide/vue'
-import { useForm } from '@tanstack/vue-form'
-import { toDate } from 'reka-ui/date'
-import { toast } from 'vue-sonner'
-
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { FieldDescription, FieldError } from '@/components/ui/field'
 import { FormItem } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
@@ -15,9 +16,13 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
+import { CalendarDate, DateFormatter, getLocalTimeZone, today } from '@internationalized/date'
+import { CalendarDaysIcon, CheckIcon, ChevronsUpDownIcon } from '@lucide/vue'
+import { useForm } from '@tanstack/vue-form'
+import { toDate } from 'reka-ui/date'
+import { toast } from 'vue-sonner'
 
 import type { AccountValidator } from '../validators/account.validator'
-
 import { accountValidator } from '../validators/account.validator'
 
 const open = shallowRef(false)
@@ -54,7 +59,11 @@ const form = useForm({
   },
   onSubmit: ({ value }) => {
     toast('You submitted the following values:', {
-      description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(value, null, 2))),
+      description: h(
+        'pre',
+        { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+        h('code', { class: 'text-white' }, JSON.stringify(value, null, 2)),
+      ),
     })
   },
 })
@@ -62,9 +71,7 @@ const form = useForm({
 
 <template>
   <div>
-    <h3 class="text-lg font-medium">
-      Account
-    </h3>
+    <h3 class="text-lg font-medium">Account</h3>
     <p class="text-sm text-muted-foreground">
       Update your account settings. Set your preferred language and timezone.
     </p>
@@ -74,7 +81,10 @@ const form = useForm({
     <form.Field name="name">
       <template #default="{ field, state }">
         <FormItem>
-          <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+          <Label
+            :data-error="!!state.meta.errors?.length"
+            class="data-[error=true]:text-destructive"
+          >
             Name
           </Label>
           <Input
@@ -95,19 +105,29 @@ const form = useForm({
     <form.Field name="dob">
       <template #default="{ field, state }">
         <FormItem class="flex flex-col">
-          <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+          <Label
+            :data-error="!!state.meta.errors?.length"
+            class="data-[error=true]:text-destructive"
+          >
             Date of birth
           </Label>
           <Popover>
             <PopoverTrigger as-child>
               <Button
-                variant="outline" :class="cn(
-                  'w-[240px] justify-start text-left font-normal',
-                  !field.state.value && 'text-muted-foreground',
-                )"
+                variant="outline"
+                :class="
+                  cn(
+                    'w-[240px] justify-start text-left font-normal',
+                    !field.state.value && 'text-muted-foreground',
+                  )
+                "
               >
                 <CalendarDaysIcon class="size-4 opacity-50" />
-                <span>{{ field.state.value ? df.format(toDate(dateValue, getLocalTimeZone())) : 'Pick a date' }}</span>
+                <span>{{
+                  field.state.value
+                    ? df.format(toDate(dateValue, getLocalTimeZone()))
+                    : 'Pick a date'
+                }}</span>
               </Button>
             </PopoverTrigger>
             <PopoverContent>
@@ -118,23 +138,22 @@ const form = useForm({
                 initial-focus
                 :min-value="new CalendarDate(1900, 1, 1)"
                 :max-value="today(getLocalTimeZone())"
-                @update:model-value="(v) => {
-                  if (v) {
-                    dateValue = v
-                    form.setFieldValue('dob', toDate(v).toISOString())
+                @update:model-value="
+                  (v) => {
+                    if (v) {
+                      dateValue = v
+                      form.setFieldValue('dob', toDate(v).toISOString())
+                    } else {
+                      dateValue = undefined
+                      form.setFieldValue('dob', undefined)
+                    }
+                    field.handleBlur()
                   }
-                  else {
-                    dateValue = undefined
-                    form.setFieldValue('dob', undefined)
-                  }
-                  field.handleBlur()
-                }"
+                "
               />
             </PopoverContent>
           </Popover>
-          <FieldDescription>
-            Your date of birth is used to calculate your age.
-          </FieldDescription>
+          <FieldDescription> Your date of birth is used to calculate your age. </FieldDescription>
           <FieldError :errors="state.meta.errors" />
         </FormItem>
       </template>
@@ -143,21 +162,28 @@ const form = useForm({
     <form.Field name="language">
       <template #default="{ field, state }">
         <FormItem class="flex flex-col">
-          <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+          <Label
+            :data-error="!!state.meta.errors?.length"
+            class="data-[error=true]:text-destructive"
+          >
             Language
           </Label>
 
           <Popover v-model:open="open">
             <PopoverTrigger as-child>
               <Button
-                variant="outline" role="combobox" :aria-expanded="open" :class="cn(
-                  'w-[200px] justify-between',
-                  !field.state.value && 'text-muted-foreground',
-                )"
+                variant="outline"
+                role="combobox"
+                :aria-expanded="open"
+                :class="
+                  cn('w-[200px] justify-between', !field.state.value && 'text-muted-foreground')
+                "
               >
-                {{ field.state.value ? languages.find(
-                  (language) => language.value === field.state.value,
-                )?.label : 'Select language...' }}
+                {{
+                  field.state.value
+                    ? languages.find((language) => language.value === field.state.value)?.label
+                    : 'Select language...'
+                }}
 
                 <ChevronsUpDownIcon class="size-4 ml-2 opacity-50 shrink-0" />
               </Button>
@@ -169,18 +195,24 @@ const form = useForm({
                 <CommandList>
                   <CommandGroup>
                     <CommandItem
-                      v-for="language in languages" :key="language.value" :value="language.label"
-                      @select="() => {
-                        form.setFieldValue('language', language.value)
-                        open = false
-                        field.handleBlur()
-                      }"
+                      v-for="language in languages"
+                      :key="language.value"
+                      :value="language.label"
+                      @select="
+                        () => {
+                          form.setFieldValue('language', language.value)
+                          open = false
+                          field.handleBlur()
+                        }
+                      "
                     >
                       <CheckIcon
-                        :class="cn(
-                          'mr-2 h-4 w-4',
-                          field.state.value === language.value ? 'opacity-100' : 'opacity-0',
-                        )"
+                        :class="
+                          cn(
+                            'mr-2 h-4 w-4',
+                            field.state.value === language.value ? 'opacity-100' : 'opacity-0',
+                          )
+                        "
                       />
                       {{ language.label }}
                     </CommandItem>
@@ -199,9 +231,7 @@ const form = useForm({
     </form.Field>
 
     <div class="flex justify-start">
-      <Button type="submit">
-        Update account
-      </Button>
+      <Button type="submit"> Update account </Button>
     </div>
   </form>
 </template>

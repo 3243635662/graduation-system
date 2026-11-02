@@ -1,14 +1,29 @@
 <script setup lang="ts">
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { isExternalUrl } from '@/utils/is-external-url'
 import { ChevronRightIcon, ExternalLinkIcon } from '@lucide/vue'
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, useSidebar } from '@/components/ui/sidebar'
-import { isExternalUrl } from '@/utils/is-external-url'
-
-import type { NavGroup, NavItem } from './types'
-
 import MenuButton from './menu-button.vue'
+import type { NavGroup, NavItem } from './types'
 
 const { navMain } = defineProps<{
   navMain: NavGroup[]
@@ -20,9 +35,8 @@ const initialPath = route.path
 const { state, isMobile } = useSidebar()
 
 function isCollapsed(menu: NavItem): boolean {
-  if (menu.url === initialPath)
-    return true
-  return !!menu.items?.some(item => item.url === initialPath)
+  if (menu.url === initialPath) return true
+  return !!menu.items?.some((item) => item.url === initialPath)
 }
 
 function isActive(menu: NavItem): boolean {
@@ -30,7 +44,7 @@ function isActive(menu: NavItem): boolean {
   if (menu.url) {
     return pathname === menu.url
   }
-  return !!menu.items?.some(item => item.url === pathname)
+  return !!menu.items?.some((item) => item.url === pathname)
 }
 </script>
 
@@ -52,7 +66,8 @@ function isActive(menu: NavItem): boolean {
           <!-- sidebar expanded -->
           <Collapsible
             v-if="state !== 'collapsed' || isMobile"
-            as-child :default-open="isCollapsed(menu)"
+            as-child
+            :default-open="isCollapsed(menu)"
             class="group/collapsible"
           >
             <SidebarMenuItem>
@@ -70,7 +85,13 @@ function isActive(menu: NavItem): boolean {
               <SidebarMenuSub>
                 <SidebarMenuSubItem v-for="subItem in menu.items" :key="subItem.title">
                   <SidebarMenuSubButton as-child :is-active="isActive(subItem as NavItem)">
-                    <a v-if="isExternalUrl(subItem?.url)" :href="subItem?.url" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2">
+                    <a
+                      v-if="isExternalUrl(subItem?.url)"
+                      :href="subItem?.url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex items-center gap-2"
+                    >
                       <component :is="subItem.icon" v-if="subItem.icon" />
                       <span>{{ subItem.title }}</span>
                       <ExternalLinkIcon class="w-4 h-4 ml-auto" />

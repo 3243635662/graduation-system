@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { RefreshCcwIcon } from '@lucide/vue'
-
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { RefreshCcwIcon } from '@lucide/vue'
 </script>
 
 <template>

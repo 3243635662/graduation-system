@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { DownloadIcon } from '@lucide/vue'
-import { toast } from 'vue-sonner'
-
-import { Modal, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle, ModalTrigger } from '@/components/prop-ui/modal'
+import {
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  ModalTrigger,
+} from '@/components/prop-ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input as FileInput } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { DownloadIcon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
 
 const isOpen = shallowRef(false)
 const file = shallowRef()
@@ -27,7 +34,11 @@ function onSubmit() {
   }
 
   toast('You submitted the following values:', {
-    description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(file.value, null, 2))),
+    description: h(
+      'pre',
+      { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+      h('code', { class: 'text-white' }, JSON.stringify(file.value, null, 2)),
+    ),
   })
   isOpen.value = false
 }
@@ -44,12 +55,8 @@ function onSubmit() {
 
     <ModalContent>
       <ModalHeader>
-        <ModalTitle>
-          Import Tasks
-        </ModalTitle>
-        <ModalDescription>
-          Import tasks quickly from a CSV file.
-        </ModalDescription>
+        <ModalTitle> Import Tasks </ModalTitle>
+        <ModalDescription> Import tasks quickly from a CSV file. </ModalDescription>
       </ModalHeader>
 
       <div class="grid w-full max-w-sm items-center gap-1.5">
@@ -59,12 +66,8 @@ function onSubmit() {
       </div>
 
       <ModalFooter>
-        <Button variant="secondary" @click="isOpen = false">
-          Cancel
-        </Button>
-        <Button @click="onSubmit">
-          Import
-        </Button>
+        <Button variant="secondary" @click="isOpen = false"> Cancel </Button>
+        <Button @click="onSubmit"> Import </Button>
       </ModalFooter>
     </ModalContent>
   </Modal>

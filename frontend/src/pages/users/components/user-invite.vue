@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { MailPlusIcon } from '@lucide/vue'
-
-import { Modal, ModalClose, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle, ModalTrigger, useModal } from '@/components/prop-ui/modal'
+import {
+  Modal,
+  ModalClose,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  ModalTrigger,
+  useModal,
+} from '@/components/prop-ui/modal'
 import { Button } from '@/components/ui/button'
+import { MailPlusIcon } from '@lucide/vue'
 
 import UserInviteForm from './user-invite-form.vue'
 
@@ -28,7 +37,8 @@ const isOpen = shallowRef(false)
           </div>
         </ModalTitle>
         <ModalDescription>
-          Invite new user to join your team by sending them an email invitation. Assign a role to define their access level.
+          Invite new user to join your team by sending them an email invitation. Assign a role to
+          define their access level.
         </ModalDescription>
       </ModalHeader>
 
@@ -36,9 +46,7 @@ const isOpen = shallowRef(false)
 
       <ModalFooter v-if="!isDesktop" class="pt-2">
         <ModalClose as-child>
-          <Button variant="outline">
-            Cancel
-          </Button>
+          <Button variant="outline"> Cancel </Button>
         </ModalClose>
       </ModalFooter>
     </ModalContent>

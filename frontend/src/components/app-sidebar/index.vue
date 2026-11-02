@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from '@/components/ui/sidebar'
 
 import { sidebarData } from './data/sidebar-data'
 import NavFooter from './nav-footer.vue'

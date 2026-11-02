@@ -12,11 +12,15 @@ const mockData: ISystemConfig[] = [
   {
     key: 'appearance_config',
     value: JSON.stringify({ theme: 'dark', font: 'inter' }),
-    description: 'Appearance configuration for the application, including theme color, border radius, and content layout.',
+    description:
+      'Appearance configuration for the application, including theme color, border radius, and content layout.',
   },
 ]
 
-function generateReturnData(data: ISystemConfig, success: boolean = true): IResponse<ISystemConfig> {
+function generateReturnData(
+  data: ISystemConfig,
+  success: boolean = true,
+): IResponse<ISystemConfig> {
   return {
     data,
     extra: {},
@@ -32,9 +36,8 @@ export function useGetSystemConfigByKeyQuery(key: string) {
     queryFn: async () => {
       const response = await new Promise<ISystemConfig | undefined>((resolve, reject) => {
         setTimeout(() => {
-          const config = mockData.find(item => item.key === key)
-          if (!config)
-            reject(new Error('Config not found'))
+          const config = mockData.find((item) => item.key === key)
+          if (!config) reject(new Error('Config not found'))
           resolve(config)
         }, 1000)
       })
@@ -56,8 +59,7 @@ export function useUpdateSystemConfigByKeyMutation(key: string) {
         setTimeout(() => {
           resolve(generateReturnData(data))
         }, 100)
-      },
-      )
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['useGetSystemConfigByKeyQuery', key] })

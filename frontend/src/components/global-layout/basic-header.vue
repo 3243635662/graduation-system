@@ -8,10 +8,12 @@ defineProps<LayoutHeaderProps>()
 
 <template>
   <header
-    :class="cn(
-      'flex flex-col md:flex-row gap-2 justify-between py-2',
-      sticky ? 'sticky top-14 z-40 bg-background' : '',
-    )"
+    :class="
+      cn(
+        'flex flex-col md:flex-row gap-2 justify-between py-2',
+        sticky ? 'sticky top-14 z-40 bg-background' : '',
+      )
+    "
   >
     <main>
       <h1 class="text-2xl font-bold">

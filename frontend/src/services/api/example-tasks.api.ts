@@ -1,6 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-
 import { apiFetch } from '@/lib/api-client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 
 import type { IResponse } from '../types/response.type'
 
@@ -63,7 +62,7 @@ export function useUpdateTaskMutation(id: number) {
 
   return useMutation<IResponse<boolean>, Error, Partial<ITask>>({
     mutationKey: ['useUpdateTaskMutation', id],
-    mutationFn: data => updateTask(id, data),
+    mutationFn: (data) => updateTask(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['useGetTaskQuery', id] })
       queryClient.invalidateQueries({ queryKey: ['useGetTasksQuery'] })

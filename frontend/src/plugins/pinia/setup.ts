@@ -1,7 +1,6 @@
-import type { App } from 'vue'
-
 import { createPinia } from 'pinia'
 import { createPersistedState } from 'pinia-plugin-persistedstate'
+import type { App } from 'vue'
 
 const pinia = createPinia()
 

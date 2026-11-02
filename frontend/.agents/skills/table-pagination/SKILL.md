@@ -59,10 +59,11 @@ const pagination = shallowRef<PaginationState>({
 
 const query = useQuery(() => ({
   queryKey: ['users', pagination.value.pageIndex, pagination.value.pageSize],
-  queryFn: () => fetchUsers({
-    page: pagination.value.pageIndex + 1,
-    pageSize: pagination.value.pageSize,
-  }),
+  queryFn: () =>
+    fetchUsers({
+      page: pagination.value.pageIndex + 1,
+      pageSize: pagination.value.pageSize,
+    }),
   placeholderData: keepPreviousData,
 }))
 
@@ -79,9 +80,7 @@ const serverPagination = computed(() => ({
   state: pagination.value,
   rowCount: rowCount.value,
   onChange: (next: Updater<PaginationState>) => {
-    pagination.value = typeof next === 'function'
-      ? next(pagination.value)
-      : next
+    pagination.value = typeof next === 'function' ? next(pagination.value) : next
   },
 }))
 ```

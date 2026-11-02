@@ -4,7 +4,7 @@ import Header from '@/components/marketing-layout/the-header.vue'
 </script>
 
 <template>
-  <div class="container mx-auto ">
+  <div class="container mx-auto">
     <div class="mx-2 lg:p-0">
       <Header />
 

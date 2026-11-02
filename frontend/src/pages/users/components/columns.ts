@@ -1,14 +1,11 @@
-import { h } from 'vue'
-
 import type { DataTableColumnDef } from '@/components/data-table'
-
 import { createSelectColumn, DataTableColumnHeader } from '@/components/data-table'
 import { Copy } from '@/components/prop-ui/copy'
 import Badge from '@/components/ui/badge/Badge.vue'
-
-import type { User } from '../data/schema'
+import { h } from 'vue'
 
 import { callTypes, userTypes } from '../data/data'
+import type { User } from '../data/schema'
 import DataTableRowActions from './data-table-row-actions.vue'
 
 export const columns: DataTableColumnDef<User>[] = [
@@ -16,7 +13,7 @@ export const columns: DataTableColumnDef<User>[] = [
   {
     accessorKey: 'username',
     header: ({ column }) => h(DataTableColumnHeader<User>, { column, title: 'username' }),
-    cell: ({ row }) => h('div', { }, row.getValue('username')),
+    cell: ({ row }) => h('div', {}, row.getValue('username')),
     enableSorting: false,
     enableHiding: false,
     enableResizing: true,
@@ -25,10 +22,15 @@ export const columns: DataTableColumnDef<User>[] = [
   {
     accessorKey: 'email',
     header: ({ column }) => h(DataTableColumnHeader<User>, { column, title: 'Email' }),
-    cell: ({ row }) => h('div', { }, [
-      h('span', {}, row.getValue('email')),
-      h(Copy, { class: 'ml-2', size: 'icon-xs', content: (row.getValue('email') || '') as string }),
-    ]),
+    cell: ({ row }) =>
+      h('div', {}, [
+        h('span', {}, row.getValue('email')),
+        h(Copy, {
+          class: 'ml-2',
+          size: 'icon-xs',
+          content: (row.getValue('email') || '') as string,
+        }),
+      ]),
     enableSorting: false,
     enableResizing: true,
   },
@@ -36,7 +38,7 @@ export const columns: DataTableColumnDef<User>[] = [
   {
     accessorKey: 'phoneNumber',
     header: ({ column }) => h(DataTableColumnHeader<User>, { column, title: 'PhoneNumber' }),
-    cell: ({ row }) => h('div', { }, row.getValue('phoneNumber')),
+    cell: ({ row }) => h('div', {}, row.getValue('phoneNumber')),
     enableSorting: false,
     enableResizing: true,
   },
@@ -46,12 +48,15 @@ export const columns: DataTableColumnDef<User>[] = [
     header: ({ column }) => h(DataTableColumnHeader<User>, { column, title: 'Status' }),
 
     cell: ({ row }) => {
-      const callType = callTypes.find(callType => callType.value === row.getValue('status'))
+      const callType = callTypes.find((callType) => callType.value === row.getValue('status'))
 
-      if (!callType)
-        return null
+      if (!callType) return null
 
-      return h(Badge, { class: `${callType.style || ''}`, variant: 'outline' }, () => callType.label)
+      return h(
+        Badge,
+        { class: `${callType.style || ''}`, variant: 'outline' },
+        () => callType.label,
+      )
     },
     filterFn: 'arrHas',
     enableResizing: true,
@@ -61,12 +66,9 @@ export const columns: DataTableColumnDef<User>[] = [
     accessorKey: 'role',
     header: ({ column }) => h(DataTableColumnHeader<User>, { column, title: 'Role' }),
     cell: ({ row }) => {
-      const priority = userTypes.find(
-        priority => priority.value === row.getValue('role'),
-      )
+      const priority = userTypes.find((priority) => priority.value === row.getValue('role'))
 
-      if (!priority)
-        return null
+      if (!priority) return null
 
       return h('div', { class: 'flex items-center' }, [
         priority.icon && h(priority.icon, { class: 'mr-2 h-4 w-4 text-muted-foreground' }),

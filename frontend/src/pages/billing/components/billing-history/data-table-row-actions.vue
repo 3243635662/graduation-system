@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
-
-import { EllipsisIcon } from '@lucide/vue'
-
 import type { DataTableRow } from '@/components/data-table'
-
 import { Modal, ModalContent } from '@/components/prop-ui/modal'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { EllipsisIcon } from '@lucide/vue'
+import type { Component } from 'vue'
 
 import type { Billing } from './data/schema'
-
 import { billingSchema } from './data/schema'
 
 interface DataTableRowActionsProps {
@@ -33,8 +35,7 @@ async function handleSelect(command: TCommand) {
     const { default: component } = await componentLoader[command]()
     showComponent.value = component
     isOpen.value = true
-  }
-  catch (e) {
+  } catch (e) {
     console.error(`Failed to load component for "${command}"`, e)
   }
 }
@@ -44,10 +45,7 @@ async function handleSelect(command: TCommand) {
   <Modal v-model:open="isOpen">
     <DropdownMenu :modal="false">
       <DropdownMenuTrigger as-child>
-        <Button
-          variant="ghost"
-          class="flex h-8 w-8 p-0 data-[state=open]:bg-muted"
-        >
+        <Button variant="ghost" class="flex h-8 w-8 p-0 data-[state=open]:bg-muted">
           <EllipsisIcon class="size-4" />
           <span class="sr-only">Open menu</span>
         </Button>

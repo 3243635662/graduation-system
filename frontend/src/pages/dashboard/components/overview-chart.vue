@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   ChartContainer,
   ChartCrosshair,
@@ -23,9 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { VisArea, VisAxis, VisLine, VisXYContainer } from '@unovis/vue'
 
 import type { OverviewChartData } from './overview-chart.data'
-
 import { chartConfig, chartData, overviewChartSvgDefs } from './overview-chart.data'
 
 const timeRange = shallowRef('90d')
@@ -36,8 +28,7 @@ const filterRange = computed(() => {
     let daysToSubtract = 90
     if (timeRange.value === '30d') {
       daysToSubtract = 30
-    }
-    else if (timeRange.value === '7d') {
+    } else if (timeRange.value === '7d') {
       daysToSubtract = 7
     }
     const startDate = new Date(referenceDate)
@@ -48,8 +39,10 @@ const filterRange = computed(() => {
 
 // Hoisted out of the template: vue-tsc (3.3.13) mis-emits `.value` for identifiers
 // indexed inline inside template prop expressions.
-const lineColor = (_d: OverviewChartData, i: number) => [chartConfig.mobile.color, chartConfig.desktop.color][i]
-const crosshairColor = (_d: OverviewChartData, i: number) => [chartConfig.mobile.color, chartConfig.desktop.color][i % 2]
+const lineColor = (_d: OverviewChartData, i: number) =>
+  [chartConfig.mobile.color, chartConfig.desktop.color][i]
+const crosshairColor = (_d: OverviewChartData, i: number) =>
+  [chartConfig.mobile.color, chartConfig.desktop.color][i % 2]
 </script>
 
 <template>
@@ -57,9 +50,7 @@ const crosshairColor = (_d: OverviewChartData, i: number) => [chartConfig.mobile
     <CardHeader class="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
       <div class="grid flex-1 gap-1">
         <CardTitle>Area Chart - Interactive</CardTitle>
-        <CardDescription>
-          Showing total visitors for the last 3 months
-        </CardDescription>
+        <CardDescription> Showing total visitors for the last 3 months </CardDescription>
       </div>
       <Select v-model="timeRange">
         <SelectTrigger
@@ -69,15 +60,9 @@ const crosshairColor = (_d: OverviewChartData, i: number) => [chartConfig.mobile
           <SelectValue placeholder="Last 3 months" />
         </SelectTrigger>
         <SelectContent class="rounded-xl">
-          <SelectItem value="90d" class="rounded-lg">
-            Last 3 months
-          </SelectItem>
-          <SelectItem value="30d" class="rounded-lg">
-            Last 30 days
-          </SelectItem>
-          <SelectItem value="7d" class="rounded-lg">
-            Last 7 days
-          </SelectItem>
+          <SelectItem value="90d" class="rounded-lg"> Last 3 months </SelectItem>
+          <SelectItem value="30d" class="rounded-lg"> Last 30 days </SelectItem>
+          <SelectItem value="7d" class="rounded-lg"> Last 7 days </SelectItem>
         </SelectContent>
       </Select>
     </CardHeader>
@@ -92,12 +77,17 @@ const crosshairColor = (_d: OverviewChartData, i: number) => [chartConfig.mobile
           <VisArea
             :x="(d: OverviewChartData) => d.date"
             :y="[(d: OverviewChartData) => d.mobile, (d: OverviewChartData) => d.desktop]"
-            :color="(_d: OverviewChartData, i: number) => ['url(#fillMobile)', 'url(#fillDesktop)'][i]"
+            :color="
+              (_d: OverviewChartData, i: number) => ['url(#fillMobile)', 'url(#fillDesktop)'][i]
+            "
             :opacity="0.6"
           />
           <VisLine
             :x="(d: OverviewChartData) => d.date"
-            :y="[(d: OverviewChartData) => d.mobile, (d: OverviewChartData) => d.mobile + d.desktop]"
+            :y="[
+              (d: OverviewChartData) => d.mobile,
+              (d: OverviewChartData) => d.mobile + d.desktop,
+            ]"
             :color="lineColor"
             :line-width="1"
           />
@@ -108,30 +98,29 @@ const crosshairColor = (_d: OverviewChartData, i: number) => [chartConfig.mobile
             :domain-line="false"
             :grid-line="false"
             :num-ticks="6"
-            :tick-format="(d: number, _index: number) => {
-              const date = new Date(d)
-              return date.toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })
-            }"
-          />
-          <VisAxis
-            type="y"
-            :num-ticks="3"
-            :tick-line="false"
-            :domain-line="false"
-          />
-          <ChartTooltip />
-          <ChartCrosshair
-            :template="componentToString(chartConfig, ChartTooltipContent, {
-              labelFormatter: (d) => {
-                return new Date(d).toLocaleDateString('en-US', {
+            :tick-format="
+              (d: number, _index: number) => {
+                const date = new Date(d)
+                return date.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                 })
-              },
-            })"
+              }
+            "
+          />
+          <VisAxis type="y" :num-ticks="3" :tick-line="false" :domain-line="false" />
+          <ChartTooltip />
+          <ChartCrosshair
+            :template="
+              componentToString(chartConfig, ChartTooltipContent, {
+                labelFormatter: (d) => {
+                  return new Date(d).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                },
+              })
+            "
             :color="crosshairColor"
           />
         </VisXYContainer>

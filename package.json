@@ -1,0 +1,43 @@
+{
+  "name": "graduation-system",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "postinstall": "simple-git-hooks",
+    "dev": "pnpm -r --parallel dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "build": "pnpm -r build",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "lint:backend": "pnpm --filter backend lint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "typecheck": "pnpm --filter frontend typecheck",
+    "test": "pnpm --filter frontend test:run && pnpm --filter backend test"
+  },
+  "devDependencies": {
+    "nano-staged": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "simple-git-hooks": "catalog:"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec nano-staged",
+    "pre-push": "pnpm lint"
+  },
+  "nano-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts,vue}": [
+      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxfmt --no-error-on-unmatched-pattern"
+    ],
+    "*.{json,jsonc,css,scss,less,html,md,mdx,yml,yaml}": "oxfmt --no-error-on-unmatched-pattern"
+  },
+  "engines": {
+    "node": ">=22.15",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@11.28.6"
+}

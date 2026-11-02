@@ -1,10 +1,9 @@
 <script setup lang="ts">
+import { reactiveOmit } from '@vueuse/core'
 import type { DialogTitleProps } from 'reka-ui'
+import { useForwardProps } from 'reka-ui'
 import type { DrawerTitleProps } from 'vaul-vue'
 import type { HTMLAttributes } from 'vue'
-
-import { reactiveOmit } from '@vueuse/core'
-import { useForwardProps } from 'reka-ui'
 
 import { useModal } from './use-modal'
 
@@ -20,11 +19,7 @@ const { Modal } = useModal()
 </script>
 
 <template>
-  <component
-    :is="Modal.Title"
-    v-bind="forwardedProps"
-    :class="props.class"
-  >
+  <component :is="Modal.Title" v-bind="forwardedProps" :class="props.class">
     <slot />
   </component>
 </template>

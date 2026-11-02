@@ -1,8 +1,7 @@
+import type { NavGroup, NavItem, NavSubItem } from '@/components/app-sidebar/types'
 import { useSessionStorage } from '@vueuse/core'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-
-import type { NavGroup, NavItem, NavSubItem } from '@/components/app-sidebar/types'
 
 /**
  * Composable for managing Vercel-style sidebar menu navigation
@@ -23,8 +22,7 @@ export function useSidebarNavigation(navMain: Readonly<NavGroup[]>) {
    * Searches across all NavGroups to find the item
    */
   function findItemByPath(path: string[]): NavSubItem | null {
-    if (path.length === 0)
-      return null
+    if (path.length === 0) return null
 
     // First, find the initial item from any NavGroup
     const firstTitle = path[0]
@@ -34,28 +32,23 @@ export function useSidebarNavigation(navMain: Readonly<NavGroup[]>) {
     for (const group of navMain as NavGroup[]) {
       const found = group.items.find((item: NavItem) => item.title === firstTitle)
       if (found) {
-        if (path.length === 1)
-          return found
+        if (path.length === 1) return found
         current = found
         break
       }
     }
 
-    if (!current)
-      return null
+    if (!current) return null
 
     // Continue traversing deeper levels
     for (let i = 1; i < path.length; i++) {
       const title = path[i]
       const items: NavSubItem[] | undefined = current?.items
-      if (!items)
-        return null
+      if (!items) return null
 
-      const next: NavSubItem | undefined = items.find(item => item.title === title)
-      if (!next)
-        return null
-      if (i === path.length - 1)
-        return next
+      const next: NavSubItem | undefined = items.find((item) => item.title === title)
+      if (!next) return null
+      if (i === path.length - 1) return next
 
       current = next
     }
@@ -118,7 +111,7 @@ export function useSidebarNavigation(navMain: Readonly<NavGroup[]>) {
    * Get breadcrumb items for display
    */
   function getBreadcrumbs() {
-    const breadcrumbs: Array<{ title: string, path: string[] }> = [
+    const breadcrumbs: Array<{ title: string; path: string[] }> = [
       { title: navMain[0]?.title || 'Home', path: [] },
     ]
 
@@ -142,7 +135,7 @@ export function useSidebarNavigation(navMain: Readonly<NavGroup[]>) {
       return currentPath === item.url
     }
     if (item.items) {
-      return item.items.some(subItem => isMenuItemActive(subItem as NavItem))
+      return item.items.some((subItem) => isMenuItemActive(subItem as NavItem))
     }
     return false
   }

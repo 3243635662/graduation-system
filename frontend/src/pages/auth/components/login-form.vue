@@ -19,14 +19,12 @@ const { login, loading } = useAuth()
 <template>
   <Card class="w-full max-w-sm">
     <CardHeader>
-      <CardTitle class="text-2xl">
-        Login
-      </CardTitle>
+      <CardTitle class="text-2xl"> Login </CardTitle>
       <CardDescription>
-        Enter your email and password below to log into your account.
-        Not have an account?
+        Enter your email and password below to log into your account. Not have an account?
         <Button
-          variant="link" class="px-0 text-muted-foreground"
+          variant="link"
+          class="px-0 text-muted-foreground"
           @click="$router.push('/auth/sign-up')"
         >
           Sign Up

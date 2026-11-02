@@ -1,17 +1,21 @@
 <script setup lang="ts" generic="T extends RowData">
-import type { PaginationState, RowData, Updater } from '@tanstack/vue-table'
-import type { CSSProperties } from 'vue'
-
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { DEFAULT_PAGE_SIZE } from '@/constants/app'
 import { FolderOpenIcon } from '@lucide/vue'
+import type { PaginationState, RowData, Updater } from '@tanstack/vue-table'
 import { FlexRender } from '@tanstack/vue-table'
+import type { CSSProperties } from 'vue'
 import { toRef } from 'vue'
 
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DEFAULT_PAGE_SIZE } from '@/constants/app'
-
 import type { DataTableColumn, DataTableInstance, DataTableProps } from './table'
-
 import { useDataTable } from './table'
 import DataTableLoading from './table-loading.vue'
 import DataTablePagination from './table-pagination.vue'
@@ -22,8 +26,8 @@ const props = defineProps<DataTableProps<T>>()
 
 defineSlots<{
   'bulk-actions': (props: { table: DataTableInstance<T> }) => any
-  'empty': (props: { table: DataTableInstance<T> }) => any
-  'toolbar': (props: { table: DataTableInstance<T> }) => any
+  empty: (props: { table: DataTableInstance<T> }) => any
+  toolbar: (props: { table: DataTableInstance<T> }) => any
 }>()
 
 const clientPagination = shallowRef<PaginationState>({
@@ -43,9 +47,8 @@ const serverPaginationOptions = {
       return
     }
 
-    clientPagination.value = typeof updater === 'function'
-      ? updater(clientPagination.value)
-      : updater
+    clientPagination.value =
+      typeof updater === 'function' ? updater(clientPagination.value) : updater
   },
 }
 
@@ -104,13 +107,8 @@ function getCommonPinningStyles(column: DataTableColumn<T>): CSSProperties {
               </TableRow>
             </template>
 
-            <TableRow
-              v-else
-            >
-              <TableCell
-                :colspan="table.getVisibleLeafColumns().length"
-                class="h-24 text-center"
-              >
+            <TableRow v-else>
+              <TableCell :colspan="table.getVisibleLeafColumns().length" class="h-24 text-center">
                 <Empty>
                   <slot name="empty" :table="table">
                     <EmptyHeader>

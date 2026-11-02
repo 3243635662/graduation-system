@@ -1,14 +1,13 @@
-import type { App } from 'vue'
-
 import { MutationCache, QueryCache, QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { FetchError } from 'ofetch'
+import type { App } from 'vue'
 import { toast } from 'vue-sonner'
 
 function handleError(error: Error) {
-  if (error instanceof FetchError && error.status === 401)
-    return
+  if (error instanceof FetchError && error.status === 401) return
 
-  const message = error instanceof FetchError ? error.data?.message || error.statusText : error.message
+  const message =
+    error instanceof FetchError ? error.data?.message || error.statusText : error.message
   toast.error(typeof message === 'string' && message ? message : 'Request failed')
 }
 

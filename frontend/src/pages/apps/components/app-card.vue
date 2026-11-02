@@ -11,15 +11,10 @@ defineProps<{ app: IApp }>()
   <Card class="relative">
     <CardHeader>
       <div class="flex items-center justify-between">
-        <div
-          class="flex items-center justify-center p-2 rounded-lg size-10 bg-muted"
-        >
+        <div class="flex items-center justify-center p-2 rounded-lg size-10 bg-muted">
           <component :is="app.logo" />
         </div>
-        <Button
-          :variant="app.connected ? 'secondary' : 'outline'"
-          size="sm"
-        >
+        <Button :variant="app.connected ? 'secondary' : 'outline'" size="sm">
           {{ app.connected ? 'Connected' : 'Connect' }}
         </Button>
       </div>

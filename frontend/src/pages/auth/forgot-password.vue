@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -13,9 +20,7 @@ import AuthTitle from './components/auth-title.vue'
       <AuthTitle />
       <Card>
         <CardHeader>
-          <CardTitle class="text-2xl">
-            Forgot Password
-          </CardTitle>
+          <CardTitle class="text-2xl"> Forgot Password </CardTitle>
           <CardDescription>
             Enter your registered email and we will send you a link to reset your password.
           </CardDescription>
@@ -36,7 +41,8 @@ import AuthTitle from './components/auth-title.vue'
           <div>
             Don't have an account?
             <Button
-              variant="link" class="px-0 text-muted-foreground"
+              variant="link"
+              class="px-0 text-muted-foreground"
               @click="$router.push('/auth/sign-up')"
             >
               Sign up.

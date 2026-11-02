@@ -1,6 +1,9 @@
+import {
+  useCreateSystemMutation,
+  useGetSystemConfigByKeyQuery,
+  useUpdateSystemConfigByKeyMutation,
+} from '@/services/api/example-system-config.api'
 import type { z } from 'zod'
-
-import { useCreateSystemMutation, useGetSystemConfigByKeyQuery, useUpdateSystemConfigByKeyMutation } from '@/services/api/example-system-config.api'
 
 /**
  * Parse and validate a raw JSON string config value against a Zod schema.
@@ -10,15 +13,13 @@ export function resolveSystemConfigValue<S extends z.ZodObject<z.ZodRawShape>>(
   schema: S,
   fallback: Readonly<z.input<S>>,
 ): z.input<S> {
-  if (!rawValue)
-    return { ...fallback } as z.input<S>
+  if (!rawValue) return { ...fallback } as z.input<S>
 
   try {
     const parsed: unknown = JSON.parse(rawValue)
     const result = schema.safeParse(parsed)
     return result.success ? (result.data as z.input<S>) : ({ ...fallback } as z.input<S>)
-  }
-  catch {
+  } catch {
     return { ...fallback } as z.input<S>
   }
 }

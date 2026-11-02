@@ -1,6 +1,5 @@
-import { AudioWaveformIcon, CommandIcon, GalleryVerticalEndIcon } from '@lucide/vue'
-
 import { navData } from '@/constants/sidebar-data'
+import { AudioWaveformIcon, CommandIcon, GalleryVerticalEndIcon } from '@lucide/vue'
 
 import type { SidebarData, Team, User } from '../types'
 

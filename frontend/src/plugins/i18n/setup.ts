@@ -1,9 +1,7 @@
 import type { App } from 'vue'
-
 import { createI18n } from 'vue-i18n'
 
 import type { Language } from '.'
-
 import { appLocale, DEFAULT_LOCALE, validateAppLocale } from '.'
 import en from './en.json'
 import zh from './zh.json'

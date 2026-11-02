@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { toast } from 'vue-sonner'
-
-import { ModalClose, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from '@/components/prop-ui/modal'
+import {
+  ModalClose,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+} from '@/components/prop-ui/modal'
 import { Button } from '@/components/ui/button'
+import { toast } from 'vue-sonner'
 
 import type { User } from '../data/schema'
 
@@ -16,7 +21,11 @@ const emits = defineEmits<{
 
 function handleRemove() {
   toast(`The following task has been deleted:`, {
-    description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(user, null, 2))),
+    description: h(
+      'pre',
+      { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+      h('code', { class: 'text-white' }, JSON.stringify(user, null, 2)),
+    ),
   })
 
   emits('remove')
@@ -26,9 +35,7 @@ function handleRemove() {
 <template>
   <div>
     <ModalHeader>
-      <ModalTitle>
-        Delete this user: {{ user.username }} ?
-      </ModalTitle>
+      <ModalTitle> Delete this user: {{ user.username }} ? </ModalTitle>
 
       <ModalDescription>
         You are about to delete a user with the ID {{ user.id }}. This action cannot be undone.
@@ -37,15 +44,11 @@ function handleRemove() {
 
     <ModalFooter>
       <ModalClose as-child>
-        <Button variant="outline">
-          Cancel
-        </Button>
+        <Button variant="outline"> Cancel </Button>
       </ModalClose>
 
       <ModalClose as-child>
-        <Button variant="destructive" @click="handleRemove">
-          Delete
-        </Button>
+        <Button variant="destructive" @click="handleRemove"> Delete </Button>
       </ModalClose>
     </ModalFooter>
   </div>

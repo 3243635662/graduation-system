@@ -7,11 +7,7 @@ const plans = [
     price: 0,
     billingCycle: 'month',
     description: 'Get started with the free plan and explore all the features.',
-    features: [
-      'Feature 1',
-      'Feature 2',
-      'Feature 3',
-    ],
+    features: ['Feature 1', 'Feature 2', 'Feature 3'],
     buttonLabel: 'Current Plan',
     active: true,
   },
@@ -21,11 +17,7 @@ const plans = [
     discount: 49.99,
     billingCycle: 'month',
     description: 'Start growing your business with our small business plan.',
-    features: [
-      'Every free plan feature',
-      '10 users',
-      '10G storage',
-    ],
+    features: ['Every free plan feature', '10 users', '10G storage'],
     buttonLabel: 'Switch to this plan',
   },
   {
@@ -34,11 +26,7 @@ const plans = [
     discount: 499.99,
     billingCycle: 'month',
     description: 'Get the best of everything with our enterprise plan.',
-    features: [
-      'Every small business plan feature',
-      'Unlimited users',
-      'Unlimited storage',
-    ],
+    features: ['Every small business plan feature', 'Unlimited users', 'Unlimited storage'],
     buttonLabel: 'Switch to this plan',
   },
 ]

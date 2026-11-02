@@ -1,6 +1,5 @@
-import type { Router } from 'vue-router'
-
 import nprogress from 'nprogress'
+import type { Router } from 'vue-router'
 
 /**
  * global router guard

@@ -1,6 +1,13 @@
-import type { Column, ColumnDef, OnChangeFn, PaginationState, Row, RowData, Table } from '@tanstack/vue-table'
-import type { Component } from 'vue'
-
+import { DEFAULT_PAGE_SIZE } from '@/constants/app'
+import type {
+  Column,
+  ColumnDef,
+  OnChangeFn,
+  PaginationState,
+  Row,
+  RowData,
+  Table,
+} from '@tanstack/vue-table'
 import {
   columnFacetingFeature,
   columnFilteringFeature,
@@ -24,9 +31,8 @@ import {
   sortFn_text,
   tableFeatures,
 } from '@tanstack/vue-table'
+import type { Component } from 'vue'
 import { unref } from 'vue'
-
-import { DEFAULT_PAGE_SIZE } from '@/constants/app'
 
 export interface FacetedFilterOption<T extends string = string> {
   label: string
@@ -95,8 +101,16 @@ export function useDataTable<T extends RowData>(
   })
 }
 
-export type DataTableColumn<T extends RowData, TValue = any> = Column<typeof dataTableFeatures, T, TValue>
-export type DataTableColumnDef<T extends RowData, TValue = any> = ColumnDef<typeof dataTableFeatures, T, TValue>
+export type DataTableColumn<T extends RowData, TValue = any> = Column<
+  typeof dataTableFeatures,
+  T,
+  TValue
+>
+export type DataTableColumnDef<T extends RowData, TValue = any> = ColumnDef<
+  typeof dataTableFeatures,
+  T,
+  TValue
+>
 export type DataTableInstance<T extends RowData> = Table<typeof dataTableFeatures, T>
 export type DataTableRow<T extends RowData> = Row<typeof dataTableFeatures, T>
 

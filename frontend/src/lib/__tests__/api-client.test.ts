@@ -1,11 +1,10 @@
-import { useQueryClient } from '@tanstack/vue-query'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp } from 'vue'
-
 import { apiFetch } from '@/lib/api-client'
 import pinia from '@/plugins/pinia/setup'
 import { setupTanstackVueQuery } from '@/plugins/tanstack-vue-query/setup'
 import { useAuthStore } from '@/stores/auth'
+import { useQueryClient } from '@tanstack/vue-query'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createApp } from 'vue'
 
 const { fetchMock, notify, push } = vi.hoisted(() => {
   const fetchMock = vi.fn()
@@ -15,7 +14,10 @@ const { fetchMock, notify, push } = vi.hoisted(() => {
 
 vi.mock('vue-sonner', () => ({ toast: { error: notify } }))
 vi.mock('@/router', () => ({ default: { push } }))
-vi.mock('@/constants/app-config', () => ({ API_BASE_URL: 'https://example.test/api', API_TIMEOUT: 5000 }))
+vi.mock('@/constants/app-config', () => ({
+  API_BASE_URL: 'https://example.test/api',
+  API_TIMEOUT: 5000,
+}))
 vi.mock('@/plugins/pinia/setup', async () => {
   const { createPinia } = await import('pinia')
   return { default: createPinia() }
@@ -94,9 +96,11 @@ describe('aPI error handling', () => {
     fetchMock.mockImplementation(() => respond(401))
 
     const results = await Promise.allSettled([fetchQuery(), apiFetch('/tasks/1')])
-    expect(results.every(result => result.status === 'rejected')).toBe(true)
+    expect(results.every((result) => result.status === 'rejected')).toBe(true)
     expect(authStore.isLogin).toBe(false)
-    expect(notify).toHaveBeenCalledExactlyOnceWith('Your session has expired, please sign in again.')
+    expect(notify).toHaveBeenCalledExactlyOnceWith(
+      'Your session has expired, please sign in again.',
+    )
     expect(push).toHaveBeenCalledExactlyOnceWith({ path: '/auth/sign-in' })
 
     await expect(apiFetch('/tasks/2')).rejects.toMatchObject({ status: 401 })

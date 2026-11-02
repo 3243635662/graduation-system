@@ -15,7 +15,9 @@ const fallback = {
 
 describe('resolveSystemConfigValue', () => {
   it('parses valid config JSON', () => {
-    expect(resolveSystemConfigValue(JSON.stringify({ theme: 'dark', font: 'system' }), schema, fallback)).toEqual({
+    expect(
+      resolveSystemConfigValue(JSON.stringify({ theme: 'dark', font: 'system' }), schema, fallback),
+    ).toEqual({
       theme: 'dark',
       font: 'system',
     })
@@ -26,6 +28,12 @@ describe('resolveSystemConfigValue', () => {
   })
 
   it('falls back for schema mismatch', () => {
-    expect(resolveSystemConfigValue(JSON.stringify({ theme: 'sepia', font: 'system' }), schema, fallback)).toEqual(fallback)
+    expect(
+      resolveSystemConfigValue(
+        JSON.stringify({ theme: 'sepia', font: 'system' }),
+        schema,
+        fallback,
+      ),
+    ).toEqual(fallback)
   })
 })

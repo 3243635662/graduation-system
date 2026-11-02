@@ -9,11 +9,7 @@ const errorPage = computed(() => resolveErrorPage(route.params.code))
 
 <template>
   <div class="flex items-center justify-center h-screen">
-    <Error
-      :code="errorPage.code"
-      :subtitle="errorPage.subtitle"
-      :error="errorPage.error"
-    />
+    <Error :code="errorPage.code" :subtitle="errorPage.subtitle" :error="errorPage.error" />
   </div>
 </template>
 

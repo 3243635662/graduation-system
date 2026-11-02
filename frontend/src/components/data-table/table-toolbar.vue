@@ -1,14 +1,11 @@
 <script setup lang="ts" generic="T extends RowData">
-import type { RowData } from '@tanstack/vue-table'
-
-import { XIcon } from '@lucide/vue'
-
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-import type { DataTableInstance, DataTableToolbarFilter } from './table'
+import { XIcon } from '@lucide/vue'
+import type { RowData } from '@tanstack/vue-table'
 
 import DataTableFacetedFilter from './faceted-filter.vue'
+import type { DataTableInstance, DataTableToolbarFilter } from './table'
 import DataTableViewOptions from './view-options.vue'
 
 interface DataTableToolbarProps<T extends RowData> {

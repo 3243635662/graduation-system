@@ -1,8 +1,6 @@
-import { z } from 'zod'
-
 import type { env as Env } from '@/validators/env.validator'
-
 import { EnvSchema } from '@/validators/env.validator'
+import { z } from 'zod'
 
 /**
  * Safe values used when the environment is invalid, so the app can still boot

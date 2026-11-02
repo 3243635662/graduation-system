@@ -1,19 +1,24 @@
 <script setup lang="ts">
-import { SendIcon } from '@lucide/vue'
-import { useForm } from '@tanstack/vue-form'
-import { toast } from 'vue-sonner'
-
 import Button from '@/components/ui/button/Button.vue'
 import { FieldError } from '@/components/ui/field'
 import { FormItem } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-
-import type { UserInviteValidator } from '../validators/user-invite.validator'
+import { SendIcon } from '@lucide/vue'
+import { useForm } from '@tanstack/vue-form'
+import { toast } from 'vue-sonner'
 
 import { userRoles } from '../data/schema'
+import type { UserInviteValidator } from '../validators/user-invite.validator'
 import { userInviteValidator } from '../validators/user-invite.validator'
 
 const defaultValues: UserInviteValidator = {
@@ -45,7 +50,10 @@ const form = useForm({
     <form.Field name="email">
       <template #default="{ field, state }">
         <FormItem>
-          <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+          <Label
+            :data-error="!!state.meta.errors?.length"
+            class="data-[error=true]:text-destructive"
+          >
             Email address
           </Label>
           <Input
@@ -62,16 +70,21 @@ const form = useForm({
     <form.Field name="role">
       <template #default="{ field, state }">
         <FormItem>
-          <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+          <Label
+            :data-error="!!state.meta.errors?.length"
+            class="data-[error=true]:text-destructive"
+          >
             Role
             <span class="text-destructive"> *</span>
           </Label>
           <Select
             :model-value="field.state.value"
-            @update:model-value="(v: any) => {
-              field.handleChange(v)
-              field.handleBlur()
-            }"
+            @update:model-value="
+              (v: any) => {
+                field.handleChange(v)
+                field.handleBlur()
+              }
+            "
           >
             <SelectTrigger class="w-full">
               <SelectValue placeholder="Select a role" />
@@ -92,7 +105,10 @@ const form = useForm({
     <form.Field name="description">
       <template #default="{ field, state }">
         <FormItem>
-          <Label :data-error="!!state.meta.errors?.length" class="data-[error=true]:text-destructive">
+          <Label
+            :data-error="!!state.meta.errors?.length"
+            class="data-[error=true]:text-destructive"
+          >
             Description(Optional)
           </Label>
           <Textarea

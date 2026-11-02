@@ -13,8 +13,14 @@ import ToggleColorMode from './toggle-color-mode.vue'
 <template>
   <Popover>
     <PopoverTrigger>
-      <Button variant="outline" size="icon-sm">
+      <Button
+        variant="outline"
+        size="icon-sm"
+        :aria-label="$t('customizeTheme')"
+        :title="$t('customizeTheme')"
+      >
         <PaintbrushIcon />
+        <span class="sr-only">{{ $t('customizeTheme') }}</span>
       </Button>
     </PopoverTrigger>
     <PopoverContent align="end">

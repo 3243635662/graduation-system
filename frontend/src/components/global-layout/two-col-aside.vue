@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ChevronsUpDownIcon } from '@lucide/vue'
-
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { ChevronsUpDownIcon } from '@lucide/vue'
 
 import type { TwoColAsideNavItem } from './types'
 
@@ -14,13 +18,14 @@ const route = useRoute()
 const currentPath = computed(() => route.path)
 const activeClass = 'text-primary font-semibold bg-primary/5'
 
-const currentLink = computed(() => props.nav.find(link => link.url === currentPath.value))
+const currentLink = computed(() => props.nav.find((link) => link.url === currentPath.value))
 </script>
 
 <template>
   <nav class="flex flex-col gap-2">
     <router-link
-      v-for="link in props.nav" :key="link.url"
+      v-for="link in props.nav"
+      :key="link.url"
       :to="link.url"
       class="items-center hidden px-2 py-1 rounded-md lg:flex hover:bg-primary/5"
       :class="link.url === currentPath ? activeClass : ''"
@@ -38,10 +43,7 @@ const currentLink = computed(() => props.nav.find(link => link.url === currentPa
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent class="w-48" align="start">
-        <DropdownMenuItem
-          v-for="link in props.nav" :key="link.url"
-          @click="$router.push(link.url)"
-        >
+        <DropdownMenuItem v-for="link in props.nav" :key="link.url" @click="$router.push(link.url)">
           <component :is="link.icon" class="size-4 mr-1" />
           {{ link.title }}
         </DropdownMenuItem>

@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { ChevronsUpDownIcon, PlusIcon } from '@lucide/vue'
-
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { ChevronsUpDownIcon, PlusIcon } from '@lucide/vue'
 
 import type { Team } from './types'
 
@@ -60,9 +72,7 @@ function handleSelect(command: TComponent) {
             :side="isMobile ? 'bottom' : 'right'"
             :side-offset="4"
           >
-            <DropdownMenuLabel class="text-xs text-muted-foreground">
-              Teams
-            </DropdownMenuLabel>
+            <DropdownMenuLabel class="text-xs text-muted-foreground"> Teams </DropdownMenuLabel>
             <DropdownMenuItem
               v-for="(team, index) in teams"
               :key="team.name"
@@ -79,12 +89,12 @@ function handleSelect(command: TComponent) {
 
             <DialogTrigger as-child>
               <DropdownMenuItem class="gap-2 p-2" @click.stop="handleSelect('team-add')">
-                <div class="flex items-center justify-center border rounded-md size-6 bg-background">
+                <div
+                  class="flex items-center justify-center border rounded-md size-6 bg-background"
+                >
                   <PlusIcon class="size-4" />
                 </div>
-                <div class="font-medium text-muted-foreground">
-                  Add team
-                </div>
+                <div class="font-medium text-muted-foreground">Add team</div>
               </DropdownMenuItem>
             </DialogTrigger>
           </DropdownMenuContent>

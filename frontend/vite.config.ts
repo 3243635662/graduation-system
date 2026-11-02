@@ -1,12 +1,12 @@
-import type { PluginOption } from 'vite'
+import process from 'node:process'
+import { fileURLToPath, URL } from 'node:url'
 
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
-import process from 'node:process'
-import { fileURLToPath, URL } from 'node:url'
 import { visualizer } from 'rollup-plugin-visualizer'
 import AutoImport from 'unplugin-auto-import/vite'
 import Component from 'unplugin-vue-components/vite'
+import type { PluginOption } from 'vite'
 import Layouts from 'vite-plugin-vue-layouts'
 import { defineConfig } from 'vitest/config'
 import { VueRouterAutoImports } from 'vue-router/unplugin'
@@ -29,26 +29,14 @@ export default defineConfig({
       defaultLayout: 'default',
     }),
     AutoImport({
-      include: [
-        /\.[tj]sx?$/,
-        /\.vue$/,
-      ],
-      imports: [
-        'vue',
-        VueRouterAutoImports,
-      ],
-      dirs: [
-        'src/composables/**/*.ts',
-        'src/constants/**/*.ts',
-        'src/stores/**/*.ts',
-      ],
+      include: [/\.[tj]sx?$/, /\.vue$/],
+      imports: ['vue', VueRouterAutoImports],
+      dirs: ['src/composables/**/*.ts', 'src/constants/**/*.ts', 'src/stores/**/*.ts'],
       defaultExportByFilename: true,
       dts: 'src/types/auto-import.d.ts',
     }),
     Component({
-      dirs: [
-        'src/components',
-      ],
+      dirs: ['src/components'],
       collapseSamePrefixes: true,
       directoryAsNamespace: true,
       dts: 'src/types/auto-import-components.d.ts',

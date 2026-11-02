@@ -1,8 +1,4 @@
 <script setup lang="ts">
-import { useForm } from '@tanstack/vue-form'
-import { toast } from 'vue-sonner'
-import z from 'zod'
-
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { FieldDescription, FieldError } from '@/components/ui/field'
@@ -11,6 +7,9 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { useForm } from '@tanstack/vue-form'
+import { toast } from 'vue-sonner'
+import z from 'zod'
 
 const schema = z.object({
   type: z.enum(['all', 'mentions', 'none']),
@@ -37,7 +36,11 @@ const form = useForm({
   },
   onSubmit: ({ value }) => {
     toast('You submitted the following values:', {
-      description: h('pre', { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' }, h('code', { class: 'text-white' }, JSON.stringify(value, null, 2))),
+      description: h(
+        'pre',
+        { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+        h('code', { class: 'text-white' }, JSON.stringify(value, null, 2)),
+      ),
     })
   },
 })
@@ -45,12 +48,8 @@ const form = useForm({
 
 <template>
   <div>
-    <h3 class="text-lg font-medium">
-      Notifications
-    </h3>
-    <p class="text-sm text-muted-foreground">
-      Configure how you receive notifications.
-    </p>
+    <h3 class="text-lg font-medium">Notifications</h3>
+    <p class="text-sm text-muted-foreground">Configure how you receive notifications.</p>
   </div>
   <Separator class="my-4" />
   <form class="space-y-8" @submit.prevent="form.handleSubmit">
@@ -63,23 +62,17 @@ const form = useForm({
             :model-value="field.state.value"
             @update:model-value="(v: any) => field.handleChange(v)"
           >
-            <FormItem class="flex items-center  space-y-0">
+            <FormItem class="flex items-center space-y-0">
               <RadioGroupItem value="all" />
-              <Label class="font-normal">
-                All new messages
-              </Label>
+              <Label class="font-normal"> All new messages </Label>
             </FormItem>
-            <FormItem class="flex items-center  space-y-0">
+            <FormItem class="flex items-center space-y-0">
               <RadioGroupItem value="mentions" />
-              <Label class="font-normal">
-                Direct messages and mentions
-              </Label>
+              <Label class="font-normal"> Direct messages and mentions </Label>
             </FormItem>
-            <FormItem class="flex items-center  space-y-0">
+            <FormItem class="flex items-center space-y-0">
               <RadioGroupItem value="none" />
-              <Label class="font-normal">
-                Nothing
-              </Label>
+              <Label class="font-normal"> Nothing </Label>
             </FormItem>
           </RadioGroup>
           <FieldError :errors="state.meta.errors" />
@@ -88,25 +81,18 @@ const form = useForm({
     </form.Field>
 
     <div>
-      <h3 class="mb-4 text-lg font-medium">
-        Email Notifications
-      </h3>
+      <h3 class="mb-4 text-lg font-medium">Email Notifications</h3>
       <div class="space-y-4">
         <form.Field name="communication_emails">
           <template #default="{ field }">
             <FormItem class="flex flex-row items-center justify-between p-4 border rounded-lg">
               <div class="space-y-0.5">
-                <Label class="text-base">
-                  Communication emails
-                </Label>
+                <Label class="text-base"> Communication emails </Label>
                 <p class="text-muted-foreground text-sm">
                   Receive emails about your account activity.
                 </p>
               </div>
-              <Switch
-                :model-value="field.state.value"
-                @update:model-value="field.handleChange"
-              />
+              <Switch :model-value="field.state.value" @update:model-value="field.handleChange" />
             </FormItem>
           </template>
         </form.Field>
@@ -115,17 +101,12 @@ const form = useForm({
           <template #default="{ field }">
             <FormItem class="flex flex-row items-center justify-between p-4 border rounded-lg">
               <div class="space-y-0.5">
-                <Label class="text-base">
-                  Marketing emails
-                </Label>
+                <Label class="text-base"> Marketing emails </Label>
                 <FieldDescription>
                   Receive emails about new products, features, and more.
                 </FieldDescription>
               </div>
-              <Switch
-                :model-value="field.state.value"
-                @update:model-value="field.handleChange"
-              />
+              <Switch :model-value="field.state.value" @update:model-value="field.handleChange" />
             </FormItem>
           </template>
         </form.Field>
@@ -134,17 +115,12 @@ const form = useForm({
           <template #default="{ field }">
             <FormItem class="flex flex-row items-center justify-between p-4 border rounded-lg">
               <div class="space-y-0.5">
-                <Label class="text-base">
-                  Social emails
-                </Label>
+                <Label class="text-base"> Social emails </Label>
                 <FieldDescription>
                   Receive emails for friend requests, follows, and more.
                 </FieldDescription>
               </div>
-              <Switch
-                :model-value="field.state.value"
-                @update:model-value="field.handleChange"
-              />
+              <Switch :model-value="field.state.value" @update:model-value="field.handleChange" />
             </FormItem>
           </template>
         </form.Field>
@@ -153,17 +129,12 @@ const form = useForm({
           <template #default="{ field }">
             <FormItem class="flex flex-row items-center justify-between p-4 border rounded-lg">
               <div class="space-y-0.5">
-                <Label class="text-base">
-                  Security emails
-                </Label>
+                <Label class="text-base"> Security emails </Label>
                 <FieldDescription>
                   Receive emails about your account activity and security.
                 </FieldDescription>
               </div>
-              <Switch
-                :model-value="field.state.value"
-                @update:model-value="field.handleChange"
-              />
+              <Switch :model-value="field.state.value" @update:model-value="field.handleChange" />
             </FormItem>
           </template>
         </form.Field>
@@ -178,14 +149,10 @@ const form = useForm({
             @update:model-value="(v: any) => field.handleChange(v)"
           />
           <div class="space-y-1 leading-none">
-            <Label>
-              Use different settings for my mobile devices
-            </Label>
+            <Label> Use different settings for my mobile devices </Label>
             <FieldDescription>
               You can manage your mobile notifications in the
-              <a href="/examples/forms">
-                mobile settings
-              </a> page.
+              <a href="/examples/forms"> mobile settings </a> page.
             </FieldDescription>
           </div>
         </FormItem>
@@ -193,9 +160,7 @@ const form = useForm({
     </form.Field>
 
     <div class="flex justify-start">
-      <Button type="submit">
-        Update notifications
-      </Button>
+      <Button type="submit"> Update notifications </Button>
     </div>
   </form>
 </template>
