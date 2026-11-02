@@ -1,9 +1,9 @@
 ---
-name: "Bug report"
+name: 'Bug report'
 about: Report a bug or unexpected behavior in shadcn-vue-admin
-title: "[BUG]: "
+title: '[BUG]: '
 labels: bug
-assignees: ""
+assignees: ''
 ---
 
 **Describe the bug**
