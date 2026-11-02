@@ -15,6 +15,8 @@
     "**/build/**",
     "**/coverage/**",
     "**/*.tsbuildinfo",
-    "**/components/ui/**"
+    "**/components/ui/**",
+    "**/src/types/auto-import.d.ts",
+    "**/src/types/route-map.d.ts"
   ]
 }
