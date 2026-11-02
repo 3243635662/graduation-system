@@ -1,6 +1,7 @@
 packages:
   - frontend
   - backend
+  - packages/*
 
 catalog:
   nano-staged: ^1.0.2
