@@ -14,5 +14,11 @@
     "newlinesBetween": true,
     "sortSideEffects": false
   },
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/build/**", "**/coverage/**"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/pnpm-lock.yaml"
+  ]
 }

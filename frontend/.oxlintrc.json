@@ -1,11 +1,7 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["eslint", "typescript", "unicorn", "oxc", "vue"],
-  "categories": {
-    "correctness": "error",
-    "suspicious": "warn"
-  },
-  "rules": {},
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
+  "extends": ["../.oxlintrc.json"],
+  "plugins": ["vue"],
   "env": {
     "builtin": true,
     "browser": true
@@ -13,5 +9,12 @@
   "globals": {
     "definePage": "readonly"
   },
-  "ignorePatterns": ["**/build/**", "**/components/ui/**"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/coverage/**",
+    "**/*.tsbuildinfo",
+    "**/components/ui/**"
+  ]
 }
