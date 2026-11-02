@@ -48,6 +48,18 @@ export default defineConfig({
     },
   },
 
+  server: {
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      // 未配置 VITE_SERVER_API_URL 时，前端仍可通过相对路径 /api 访问后端
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
+
   test: {
     coverage: {
       provider: 'v8',
