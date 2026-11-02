@@ -30,10 +30,10 @@
   },
   "nano-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs,mts,cts,vue}": [
-      "oxlint --fix",
-      "oxfmt"
+      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxfmt --no-error-on-unmatched-pattern"
     ],
-    "*.{json,jsonc,css,scss,less,html,md,mdx,yml,yaml}": "oxfmt"
+    "*.{json,jsonc,css,scss,less,html,md,mdx,yml,yaml}": "oxfmt --no-error-on-unmatched-pattern"
   },
   "engines": {
     "node": ">=22.15",
