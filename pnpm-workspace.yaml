@@ -23,6 +23,7 @@ shellEmulator: true
 
 allowBuilds:
   '@prisma/engines': true
+  '@scarf/scarf': false
   argon2: true
   esbuild: true
   maplibre-gl: true

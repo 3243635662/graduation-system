@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "postinstall": "simple-git-hooks && pnpm --filter @graduation/shared build",
+    "postinstall": "simple-git-hooks && pnpm --filter @graduation/shared build && pnpm --filter backend exec prisma generate",
     "predev": "pnpm --filter @graduation/shared build",
     "dev": "pnpm -r --parallel dev",
     "dev:frontend": "pnpm --filter frontend dev",
