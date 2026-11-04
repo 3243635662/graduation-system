@@ -3,15 +3,18 @@ import Loading from '@/components/loading.vue'
 import { Toaster } from '@/components/ui/sonner'
 import { useSystemTheme } from '@/composables/use-system-theme'
 import { envError } from '@/utils/env'
+import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
+
+const { t } = useI18n()
 
 useSystemTheme()
 
 onMounted(() => {
   if (envError) {
     const flattenError = z.flattenError(envError)
-    toast.error('Env error: you should check your .env file', {
+    toast.error(t('envError'), {
       description: h(
         'pre',
         { class: 'mt-2 rounded-md bg-slate-950 p-4 text-wrap' },

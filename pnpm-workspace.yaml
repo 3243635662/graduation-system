@@ -10,15 +10,22 @@ catalog:
   oxlint-tsgolint: ^7.0.2001
   simple-git-hooks: ^2.14.0
 
+nodeLinker: hoisted
+
 minimumReleaseAge: 1440
 minimumReleaseAgeExcludePrune: true
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - undici@6.20.1
+  - prisma@7.10.1
 autoInstallPeers: false
 shellEmulator: true
 
 allowBuilds:
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
   maplibre-gl: true
+  prisma: true
   simple-git-hooks: true
   vue-demi: true

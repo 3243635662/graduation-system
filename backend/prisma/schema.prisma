@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ========================================
+// 枚举
+// ========================================
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+}
+
+enum RoleStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum MenuType {
+  DIRECTORY
+  PAGE
+}
+
+enum MenuStatus {
+  ACTIVE
+  DISABLED
+}
+
+// ========================================
+// 1. 用户表
+// ========================================
+
+model User {
+  id           String     @id @default(uuid()) @db.Char(36)
+  email        String     @unique @db.VarChar(191)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  displayName  String     @map("display_name") @db.VarChar(80)
+  avatarUrl    String?    @map("avatar_url") @db.VarChar(500)
+  status       UserStatus @default(ACTIVE)
+
+  lastLoginAt DateTime? @map("last_login_at") @db.DateTime(3)
+  deletedAt   DateTime? @map("deleted_at") @db.DateTime(3)
+
+  // 审计字段
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  // 用户自关联：记录创建者
+  createdBy    User?  @relation("UserCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdUsers User[] @relation("UserCreatedBy")
+
+  // 用户与其他模型的关系
+  userRoles UserRole[]    @relation("UserRoleUser")
+  sessions  AuthSession[]
+
+  createdRoles           Role[]           @relation("RoleCreatedBy")
+  createdPermissions     Permission[]     @relation("PermissionCreatedBy")
+  createdMenus           Menu[]           @relation("MenuCreatedBy")
+  createdUserRoles       UserRole[]       @relation("UserRoleCreatedBy")
+  createdRolePermissions RolePermission[] @relation("RolePermissionCreatedBy")
+  createdRoleMenus       RoleMenu[]       @relation("RoleMenuCreatedBy")
+
+  @@index([status, deletedAt])
+  @@map("users")
+}
+
+// ========================================
+// 2. 角色表
+// ========================================
+
+model Role {
+  id          String     @id @default(uuid()) @db.Char(36)
+  code        String     @unique @db.VarChar(64)
+  name        String     @db.VarChar(100)
+  description String?    @db.VarChar(255)
+  isSystem    Boolean    @default(false) @map("is_system")
+  status      RoleStatus @default(ACTIVE)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  createdBy User? @relation("RoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+  roleMenus       RoleMenu[]
+
+  @@map("roles")
+}
+
+// ========================================
+// 3. 权限表
+// ========================================
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Char(36)
+  code        String  @unique @db.VarChar(128)
+  name        String  @db.VarChar(100)
+  moduleName  String  @map("module_name") @db.VarChar(64)
+  action      String  @db.VarChar(64)
+  description String? @db.VarChar(255)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  createdBy       User?            @relation("PermissionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+// ========================================
+// 4. 菜单表
+// ========================================
+
+model Menu {
+  id    String   @id @default(uuid()) @db.Char(36)
+  code  String   @unique @db.VarChar(64)
+  title String   @db.VarChar(100)
+  path  String?  @unique @db.VarChar(255)
+  icon  String?  @db.VarChar(100)
+  type  MenuType @default(PAGE)
+
+  parentId String? @map("parent_id") @db.Char(36)
+  parent   Menu?   @relation("MenuHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Menu[]  @relation("MenuHierarchy")
+
+  sortOrder Int        @default(0) @map("sort_order")
+  visible   Boolean    @default(true)
+  status    MenuStatus @default(ACTIVE)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  createdBy User? @relation("MenuCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  roleMenus RoleMenu[]
+
+  @@index([parentId, sortOrder])
+  @@map("menus")
+}
+
+// ========================================
+// 5. 用户角色关联表
+// ========================================
+
+model UserRole {
+  userId String @map("user_id") @db.Char(36)
+  roleId String @map("role_id") @db.Char(36)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  user      User  @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("UserRoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+// ========================================
+// 6. 角色权限关联表
+// ========================================
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Char(36)
+  permissionId String @map("permission_id") @db.Char(36)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdBy  User?      @relation("RolePermissionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// ========================================
+// 7. 角色菜单关联表
+// ========================================
+
+model RoleMenu {
+  roleId String @map("role_id") @db.Char(36)
+  menuId String @map("menu_id") @db.Char(36)
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  menu      Menu  @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("RoleMenuCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@id([roleId, menuId])
+  @@index([menuId])
+  @@map("role_menus")
+}
+
+// ========================================
+// 8. 登录会话表
+// ========================================
+
+model AuthSession {
+  id     String @id @default(uuid()) @db.Char(36)
+  userId String @map("user_id") @db.Char(36)
+
+  // 只存储 Refresh Token 的 SHA-256 哈希
+  refreshTokenHash String @unique @map("refresh_token_hash") @db.Char(64)
+
+  expiresAt  DateTime  @map("expires_at") @db.DateTime(3)
+  revokedAt  DateTime? @map("revoked_at") @db.DateTime(3)
+  lastUsedAt DateTime? @map("last_used_at") @db.DateTime(3)
+
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(512)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("auth_sessions")
+}

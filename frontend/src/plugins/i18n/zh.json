@@ -139,5 +139,6 @@
   },
   "homePage": {
     "searchKeyWords": "搜索菜单"
-  }
+  },
+  "envError": "环境变量错误：请检查您的 .env 配置文件"
 }

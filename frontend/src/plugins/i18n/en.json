@@ -139,5 +139,6 @@
   },
   "homePage": {
     "searchKeyWords": "Search Menu"
-  }
+  },
+  "envError": "Env error: you should check your .env file"
 }

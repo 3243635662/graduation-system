@@ -1,0 +1,95 @@
+name: graduation-system
+
+services:
+  # ========================================
+  # MySQL 8.4：关系型数据库
+  # ========================================
+  mysql:
+    image: mysql:8.4.13
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请配置MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-graduation_system}
+      MYSQL_USER: ${MYSQL_USER:-graduation_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请配置MYSQL_PASSWORD}
+
+    ports:
+      - '127.0.0.1:${MYSQL_PORT:-3306}:3306'
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p"$${MYSQL_ROOT_PASSWORD}" --silent']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ========================================
+  # Redis 7.4：缓存、登录状态、BullMQ
+  # ========================================
+  redis:
+    image: redis:7.4.12-alpine
+    restart: unless-stopped
+
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请配置REDIS_PASSWORD}
+
+    command:
+      [
+        'sh',
+        '-c',
+        'exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}"',
+      ]
+
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6380}:6379'
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ['CMD-SHELL', 'REDISCLI_AUTH=$${REDIS_PASSWORD} redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================
+  # ChromaDB：AI 向量数据库、RAG
+  # ========================================
+  chroma:
+    image: chromadb/chroma:1.5.9
+    restart: unless-stopped
+
+    environment:
+      IS_PERSISTENT: 'TRUE'
+      ANONYMIZED_TELEMETRY: 'FALSE'
+
+    ports:
+      - '127.0.0.1:${CHROMA_PORT:-8001}:8000'
+
+    volumes:
+      - chroma_data:/data
+
+    healthcheck:
+      disable: true
+
+# ========================================
+# Docker 持久化数据卷
+# ========================================
+volumes:
+  mysql_data:
+    name: graduation-system-mysql-data
+
+  redis_data:
+    name: graduation-system-redis-data
+
+  chroma_data:
+    name: graduation-system-chroma-data

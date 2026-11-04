@@ -1,4 +1,5 @@
 import { API_PREFIX } from '@graduation/shared'
+import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 
 import { AppModule } from './app.module.js'
@@ -21,7 +22,12 @@ async function bootstrap() {
   app.setGlobalPrefix(API_PREFIX)
   app.enableCors({ origin: corsOrigins, credentials: true })
 
-  await app.listen(process.env.PORT ?? 3000)
+  const port = process.env.PORT ?? 3000
+  await app.listen(port)
+
+  const logger = new Logger('Bootstrap')
+  logger.log(`🚀 Application is running on: http://localhost:${port}`)
+  logger.log(`🔗 API URL: http://localhost:${port}/${API_PREFIX}`)
 }
 
 await bootstrap()

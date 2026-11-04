@@ -15,17 +15,27 @@
   "i18n-ally.keystyle": "flat",
 
   "cSpell.words": [
+    "appendfsync",
+    "appendonly",
     "autoplay",
+    "everysec",
     "formkit",
+    "healthcheck",
     "iconify",
     "lucide",
+    "mysqladmin",
     "persistedstate",
+    "pinia",
+    "REDISCLI",
     "reka",
+    "requirepass",
     "sonner",
     "tanstack",
     "unovis",
     "unplugin",
+    "uroot",
     "vaul",
+    "vueuse",
     "Whbbit1999"
   ],
   "[vue]": {
@@ -33,5 +43,8 @@
   },
   "[typescript]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[dockercompose]": {
+    "editor.defaultFormatter": "ms-azuretools.vscode-containers"
   }
 }
