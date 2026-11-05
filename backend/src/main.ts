@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 
 import { AppModule } from './app.module.js'
+import { configureGlobalEnhancers } from './common/configure-global-enhancers.js'
 
 // .env 可选：文件不存在时沿用系统环境变量
 try {
@@ -20,6 +21,8 @@ const corsOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
 async function bootstrap() {
   const app = await NestFactory.create(AppModule)
 
+  // 全局请求处理配置
+  configureGlobalEnhancers(app)
   // 全局 API 前缀
   app.setGlobalPrefix(API_PREFIX)
 

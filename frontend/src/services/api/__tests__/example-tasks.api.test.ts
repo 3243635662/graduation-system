@@ -13,7 +13,8 @@ const task: ITask = {
   status: 'pending',
 }
 
-const response = { data: task, extra: {}, code: 200, message: 'success', success: true }
+// 模拟符合 ApiSuccessResponse<ITask> 格式的响应对象（code: 0 表示成功，data 存放数据）
+const response = { code: 0, message: 'success', data: task }
 
 describe('example-tasks transport', () => {
   beforeEach(() => {

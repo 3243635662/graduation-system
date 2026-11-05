@@ -38,6 +38,9 @@ pnpm dev:frontend
 
 # 仅启动后端（API 地址：http://localhost:3000/api）
 pnpm dev:backend
+
+# 启动共享包的类型监听编译（@graduation/shared）
+pnpm --filter @graduation/shared dev
 ```
 
 ---
