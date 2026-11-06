@@ -63,7 +63,7 @@ export function useSystemConfig<S extends z.ZodObject<z.ZodRawShape>>({
     ([configData, loading]) => {
       if (loading) return
 
-      const configValue = configData
+      const configValue = configData?.data
         ? resolveSystemConfigValue(configData.data.value, schema, initialConfig)
         : null
 

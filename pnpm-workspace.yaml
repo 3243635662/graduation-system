@@ -10,7 +10,7 @@ catalog:
   oxlint-tsgolint: ^7.0.2001
   simple-git-hooks: ^2.14.0
 
-nodeLinker: hoisted
+nodeLinker: isolated
 
 minimumReleaseAge: 1440
 minimumReleaseAgeExcludePrune: true

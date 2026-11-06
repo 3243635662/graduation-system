@@ -19,6 +19,9 @@
  * 命名约定：
  *   - 命名前缀 "example-" 表示此文件仅作演示，
  *     后续接入真实接口后可删除，或按同样规范新建 xxx.api.ts
+ *
+ * 对接本后端时，新接口可改用 `@/lib/api-client` 的 apiRequest<T>()：
+ * 它会自动校验业务码、统一转换错误，并直接返回 data。
  */
 
 import { apiFetch } from '@/lib/api-client'

@@ -35,11 +35,11 @@ const mockData: ISystemConfig[] = [
   },
 ]
 
-/** 构造一个符合 ApiResponse 格式的成功响应对象 */
+/** 构造一个与后端响应拦截器一致的成功响应对象 */
 function buildSuccessResponse<T>(data: T): ApiResponse<T> {
   return {
     code: 0,
-    message: 'success',
+    message: '请求成功',
     data,
   }
 }
