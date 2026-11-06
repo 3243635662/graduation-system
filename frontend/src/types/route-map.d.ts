@@ -45,20 +45,6 @@ declare module 'vue-router/auto-routes' {
       { path: ParamValue<false> },
       | never
     >,
-    '/ai-talk/': RouteRecordInfo<
-      '/ai-talk/',
-      '/ai-talk',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/apps/': RouteRecordInfo<
-      '/apps/',
-      '/apps',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/auth': RouteRecordInfo<
       '/auth',
       '/auth',
@@ -113,20 +99,6 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/billing/': RouteRecordInfo<
-      '/billing/',
-      '/billing',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/dashboard/': RouteRecordInfo<
-      '/dashboard/',
-      '/dashboard',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/errors': RouteRecordInfo<
       '/errors',
       '/errors',
@@ -147,83 +119,6 @@ declare module 'vue-router/auto-routes' {
       '/errors/:code',
       { code: ParamValue<true> },
       { code: ParamValue<false> },
-      | never
-    >,
-    '/help-center': RouteRecordInfo<
-      '/help-center',
-      '/help-center',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/marketing/': RouteRecordInfo<
-      '/marketing/',
-      '/marketing',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/marketing/hello': RouteRecordInfo<
-      '/marketing/hello',
-      '/marketing/hello',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/prop-components/': RouteRecordInfo<
-      '/prop-components/',
-      '/prop-components',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/settings/': RouteRecordInfo<
-      '/settings/',
-      '/settings',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/settings/account': RouteRecordInfo<
-      '/settings/account',
-      '/settings/account',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/settings/appearance': RouteRecordInfo<
-      '/settings/appearance',
-      '/settings/appearance',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/settings/display': RouteRecordInfo<
-      '/settings/display',
-      '/settings/display',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/settings/notifications': RouteRecordInfo<
-      '/settings/notifications',
-      '/settings/notifications',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/tasks/': RouteRecordInfo<
-      '/tasks/',
-      '/tasks',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/users/': RouteRecordInfo<
-      '/users/',
-      '/users',
-      Record<never, never>,
-      Record<never, never>,
       | never
     >,
   }
@@ -254,22 +149,6 @@ declare module 'vue-router/auto-routes' {
         | never
       pathParamNames:
         | 'path'
-    }
-    'src/pages/ai-talk/index.vue': {
-      routes:
-        | '/ai-talk/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/apps/index.vue': {
-      routes:
-        | '/apps/'
-      views:
-        | never
-      pathParamNames:
-        | never
     }
     'src/pages/auth.vue': {
       routes:
@@ -333,22 +212,6 @@ declare module 'vue-router/auto-routes' {
       pathParamNames:
         | never
     }
-    'src/pages/billing/index.vue': {
-      routes:
-        | '/billing/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/dashboard/index.vue': {
-      routes:
-        | '/dashboard/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
     'src/pages/errors.vue': {
       routes:
         | '/errors'
@@ -374,94 +237,6 @@ declare module 'vue-router/auto-routes' {
         | never
       pathParamNames:
         | 'code'
-    }
-    'src/pages/help-center.vue': {
-      routes:
-        | '/help-center'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/marketing/index.vue': {
-      routes:
-        | '/marketing/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/marketing/hello.vue': {
-      routes:
-        | '/marketing/hello'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/prop-components/index.vue': {
-      routes:
-        | '/prop-components/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/settings/index.vue': {
-      routes:
-        | '/settings/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/settings/account.vue': {
-      routes:
-        | '/settings/account'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/settings/appearance.vue': {
-      routes:
-        | '/settings/appearance'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/settings/display.vue': {
-      routes:
-        | '/settings/display'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/settings/notifications.vue': {
-      routes:
-        | '/settings/notifications'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/tasks/index.vue': {
-      routes:
-        | '/tasks/'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/users/index.vue': {
-      routes:
-        | '/users/'
-      views:
-        | never
-      pathParamNames:
-        | never
     }
   }
 

@@ -2,8 +2,9 @@
 import Loading from '@/components/loading.vue'
 import { useRouter } from 'vue-router'
 
+// 首页统一进入工作台（工作台由动态路由注册，路径固定为 /dashboard）
 const router = useRouter()
-router.push({ name: '/dashboard/' })
+router.replace('/dashboard')
 </script>
 
 <template>

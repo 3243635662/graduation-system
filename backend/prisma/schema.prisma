@@ -123,12 +123,13 @@ model Permission {
 // ========================================
 
 model Menu {
-  id    String   @id @default(uuid()) @db.Char(36)
-  code  String   @unique @db.VarChar(64)
-  title String   @db.VarChar(100)
-  path  String?  @unique @db.VarChar(255)
-  icon  String?  @db.VarChar(100)
-  type  MenuType @default(PAGE)
+  id           String   @id @default(uuid()) @db.Char(36)
+  code         String   @unique @db.VarChar(64)
+  title        String   @db.VarChar(100)
+  path         String?  @unique @db.VarChar(255)
+  componentKey String?  @map("component_key") @db.VarChar(128)
+  icon         String?  @db.VarChar(100)
+  type         MenuType @default(PAGE)
 
   parentId String? @map("parent_id") @db.Char(36)
   parent   Menu?   @relation("MenuHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
