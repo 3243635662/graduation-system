@@ -1,23 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { PinInput, PinInputGroup, PinInputInput } from '@/components/ui/pin-input'
-import { AUTH_CONFIG } from '@/config/auth.ts'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 import AuthTitle from './components/auth-title.vue'
-
-const value = ref<string[]>([])
-function handleComplete(e: string[]) {
-  // eslint-disable-next-line no-alert
-  alert(e.join(''))
-}
 </script>
 
 <template>
@@ -26,31 +11,12 @@ function handleComplete(e: string[]) {
       <AuthTitle />
       <Card class="w-full max-w-sm">
         <CardHeader>
-          <CardTitle class="text-2xl"> Two-Factor Authentication </CardTitle>
-          <CardDescription>
-            Please enter the authentication code.We have sent the authentication code to your email.
-          </CardDescription>
+          <CardTitle class="text-2xl">双因素认证</CardTitle>
+          <CardDescription>该功能暂未开放。</CardDescription>
         </CardHeader>
-        <CardContent class="grid gap-4">
-          <div class="grid items-center justify-center gap-2">
-            <PinInput id="pin-input" v-model="value" placeholder="○" @complete="handleComplete">
-              <span v-if="AUTH_CONFIG.otpPrefix" class="text-xl">{{ AUTH_CONFIG.otpPrefix }}</span>
-              <span v-if="AUTH_CONFIG.otpPrefix">-</span>
-
-              <PinInputGroup>
-                <PinInputInput v-for="(id, index) in 6" :key="id" :index="index" />
-              </PinInputGroup>
-            </PinInput>
-          </div>
+        <CardContent>
+          <Button class="w-full" @click="$router.push('/auth/sign-in')">返回登录</Button>
         </CardContent>
-        <CardFooter class="flex flex-col gap-2">
-          <Button class="w-full" :disabled="value.length < 6"> Verify </Button>
-
-          <CardDescription>
-            Haven't received it?
-            <Button variant="link" class="px-0 text-muted-foreground"> Resend a new code. </Button>
-          </CardDescription>
-        </CardFooter>
       </Card>
     </main>
   </div>

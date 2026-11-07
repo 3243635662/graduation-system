@@ -1,55 +1,64 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { GraduationCapIcon, ShieldCheckIcon, SparklesIcon } from '@lucide/vue'
+import { useRouter } from 'vue-router'
 
-import AuthTitle from './components/auth-title.vue'
+import AuthShell from './components/auth-shell.vue'
+
+const router = useRouter()
+
+const features = [
+  {
+    icon: SparklesIcon,
+    title: 'Account Security',
+    subtitle: '账号安全与鉴权机制',
+  },
+  {
+    icon: ShieldCheckIcon,
+    title: 'Data Protection',
+    subtitle: '院校认证多重校验',
+  },
+  {
+    icon: GraduationCapIcon,
+    title: 'Help & Support',
+    subtitle: '教务处与学院技术支持',
+  },
+]
 </script>
 
 <template>
-  <div class="flex items-center justify-center min-h-screen p-4 min-w-screen">
-    <main class="flex flex-col gap-4">
-      <AuthTitle />
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-2xl"> Forgot Password </CardTitle>
-          <CardDescription>
-            Enter your registered email and we will send you a link to reset your password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="grid gap-4">
-          <div class="grid gap-2">
-            <Label for="email">
-              {{ $t('email') }}
-            </Label>
-            <Input id="email" type="email" placeholder="m@example.com" required />
-          </div>
-        </CardContent>
-        <CardFooter class="flex flex-col gap-2">
-          <Button class="w-full">
-            {{ $t('forgotPasswordPage.continue') }}
-          </Button>
+  <AuthShell
+    background-image="/images/auth/campus-lake.png"
+    hero-title="Account"
+    hero-highlight="Recovery"
+    hero-tagline="Secure · Reliable · Protected"
+    :features="features"
+  >
+    <div class="w-full max-w-[430px] rounded-[32px] glass-card p-7 sm:p-9 relative overflow-hidden">
+      <div class="mb-2">
+        <div
+          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wider text-primary bg-primary/10 border border-primary/20"
+        >
+          <span>SECURITY</span>
+          <span class="w-3 h-[2px] bg-primary rounded-full" />
+        </div>
+      </div>
 
-          <div>
-            Don't have an account?
-            <Button
-              variant="link"
-              class="px-0 text-muted-foreground"
-              @click="$router.push('/auth/sign-up')"
-            >
-              Sign up.
-            </Button>
-          </div>
-        </CardFooter>
-      </Card>
-    </main>
-  </div>
+      <div class="mb-6">
+        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-card-foreground">
+          找回密码
+        </h2>
+        <p class="text-xs sm:text-sm text-muted-foreground mt-1.5 leading-relaxed">
+          该功能暂未对公网开放。如需重置密码，请联系所在学院教学秘书或学校系统管理员。
+        </p>
+      </div>
+
+      <Button
+        class="w-full h-12 rounded-xl text-sm sm:text-base font-semibold text-primary-foreground bg-primary shadow-lg shadow-primary/25 hover:bg-primary/90 cursor-pointer"
+        @click="router.push('/auth/sign-in')"
+      >
+        返回登录
+      </Button>
+    </div>
+  </AuthShell>
 </template>

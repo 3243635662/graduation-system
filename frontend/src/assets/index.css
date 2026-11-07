@@ -36,6 +36,14 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+   * 媒体层前景色。
+   * 认证页白天不加蒙层、直接露出照片，此时文字必须始终是浅色才可读，
+   * 因此该 token 刻意不随 6 套主题与明暗模式变化——它是「照片上的文字」这一
+   * 唯一职责的定点色，改这一处即可，组件里不再出现任何字面色值。
+   */
+  --media-foreground: oklch(0.99 0 0);
 }
 
 .dark {
@@ -92,6 +100,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-media-foreground: var(--media-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -139,6 +148,31 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ==========================================
+   玻璃拟态工具类
+   所有颜色一律由主题变量混合而来（--card / --card-foreground / --border /
+   --foreground），不引入任何字面色值，因此 6 套主题与明暗模式会自动同步。
+   ========================================== */
+@utility glass-card {
+  background-color: color-mix(in oklab, var(--card) 78%, transparent);
+  color: var(--card-foreground);
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--card) 92%, transparent),
+    0 24px 60px -24px color-mix(in oklab, var(--foreground) 38%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(24px) saturate(160%);
+}
+
+@utility glass-surface {
+  background-color: color-mix(in oklab, var(--card) 55%, transparent);
+  color: var(--card-foreground);
+  border: 1px solid color-mix(in oklab, var(--border) 42%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 55%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
 }
 
 /* shimmer */

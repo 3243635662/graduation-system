@@ -1,116 +1,166 @@
-import { apiFetch } from '@/lib/api-client'
-import pinia from '@/plugins/pinia/setup'
-import { setupTanstackVueQuery } from '@/plugins/tanstack-vue-query/setup'
-import { useAuthStore } from '@/stores/auth'
-import { useQueryClient } from '@tanstack/vue-query'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp } from 'vue'
+import { API_ERROR_CODE } from '@/services/types/response.type'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchMock, notify, push } = vi.hoisted(() => {
-  const fetchMock = vi.fn()
-  vi.stubGlobal('fetch', fetchMock)
-  return { fetchMock, notify: vi.fn(), push: vi.fn() }
-})
+const fetchMock = vi.hoisted(() => vi.fn())
+vi.mock('ofetch', () => ({ ofetch: { create: () => fetchMock } }))
 
-vi.mock('vue-sonner', () => ({ toast: { error: notify } }))
-vi.mock('@/router', () => ({ default: { push } }))
+const emitRefreshed = vi.hoisted(() => vi.fn())
+const emitExpired = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/auth-events', () => ({
+  emitSessionRefreshed: emitRefreshed,
+  emitSessionExpired: emitExpired,
+  onSessionRefreshed: vi.fn(),
+  onSessionExpired: vi.fn(),
+}))
+
 vi.mock('@/constants/app-config', () => ({
   API_BASE_URL: 'https://example.test/api',
   API_TIMEOUT: 5000,
 }))
-vi.mock('@/plugins/pinia/setup', async () => {
-  const { createPinia } = await import('pinia')
-  return { default: createPinia() }
-})
 
-const app = createApp({})
-setupTanstackVueQuery(app)
-const queryClient = app.runWithContext(() => useQueryClient())
-const authStore = useAuthStore(pinia)
+import { getAccessToken, setAccessToken } from '@/lib/access-token'
+import { apiRequest } from '@/lib/api-client'
 
-function respond(status: number) {
-  return new Response(JSON.stringify({ message: 'Service unavailable' }), {
+const user = {
+  id: 'user-1',
+  email: 'student@example.com',
+  displayName: '张三',
+  status: 'ACTIVE' as const,
+  roles: [],
+}
+
+function success<T>(data: T) {
+  return { code: 0, data, message: '请求成功' }
+}
+
+function httpError(code: number, message: string, status: number) {
+  return Object.assign(new Error(message), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    data: { code, data: null, message },
   })
 }
 
-function fetchQuery() {
-  return queryClient.fetchQuery({
-    queryKey: ['tasks'],
-    queryFn: () => apiFetch('/tasks'),
-    retry: 1,
-    retryDelay: 0,
-  })
-}
-
-describe('aPI error handling', () => {
+describe('apiRequest', () => {
   beforeEach(() => {
-    vi.resetAllMocks()
-    authStore.isLogin = true
+    vi.clearAllMocks()
+    setAccessToken(null)
   })
 
   afterEach(() => {
-    queryClient.clear()
-  })
-
-  afterAll(() => {
     vi.unstubAllGlobals()
   })
 
-  it.each([
-    [503, 200],
-    [503, 503, 200],
-  ])('does not notify when retries recover (%j)', async (...statuses) => {
-    fetchMock.mockImplementation(() => respond(statuses.shift()!))
+  it('成功响应直接返回 data', async () => {
+    fetchMock.mockResolvedValueOnce(success({ ok: true }))
 
-    await expect(fetchQuery()).resolves.toBeDefined()
-    expect(notify).not.toHaveBeenCalled()
+    await expect(apiRequest('/tasks')).resolves.toEqual({ ok: true })
+    expect(fetchMock).toHaveBeenCalledOnce()
   })
 
-  it('notifies once after both fetch and query retries are exhausted', async () => {
-    fetchMock.mockImplementation(() => {
-      expect(notify).not.toHaveBeenCalled()
-      return respond(503)
+  it('Access Token 过期时刷新、落地新 Token 并重试一次', async () => {
+    fetchMock
+      .mockRejectedValueOnce(httpError(API_ERROR_CODE.TOKEN_EXPIRED, '登录凭证已过期', 401))
+      .mockResolvedValueOnce(success({ accessToken: 'new-token', user }))
+      .mockResolvedValueOnce(success({ ok: true }))
+
+    await expect(apiRequest('/tasks')).resolves.toEqual({ ok: true })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/auth/refresh', { method: 'POST' })
+    expect(getAccessToken()).toBe('new-token')
+    expect(emitRefreshed).toHaveBeenCalledWith({ accessToken: 'new-token', user })
+  })
+
+  it('并发 401 只触发一次刷新', async () => {
+    let refreshCalls = 0
+    let taskCalls = 0
+
+    fetchMock.mockImplementation((path: string) => {
+      if (path === '/auth/refresh') {
+        refreshCalls += 1
+        return Promise.resolve(success({ accessToken: 'new-token', user }))
+      }
+
+      taskCalls += 1
+
+      if (taskCalls <= 2) {
+        return Promise.reject(httpError(API_ERROR_CODE.TOKEN_EXPIRED, '过期', 401))
+      }
+
+      return Promise.resolve(success({ ok: true }))
     })
 
-    await expect(fetchQuery()).rejects.toMatchObject({ status: 503 })
-    expect(fetchMock).toHaveBeenCalledTimes(4)
-    expect(notify).toHaveBeenCalledExactlyOnceWith('Service unavailable')
+    const results = await Promise.all([apiRequest('/tasks/1'), apiRequest('/tasks/2')])
+
+    expect(results).toEqual([{ ok: true }, { ok: true }])
+    expect(refreshCalls).toBe(1)
+    expect(emitRefreshed).toHaveBeenCalledOnce()
   })
 
-  it('notifies once after mutation retries are exhausted', async () => {
-    fetchMock.mockImplementation(() => respond(503))
-    const mutation = queryClient.getMutationCache().build(queryClient, {
-      mutationFn: () => apiFetch('/tasks', { method: 'post' }),
-      retry: 1,
-      retryDelay: 0,
+  it('刷新失败时清空 Token 并通知组合根处理过期', async () => {
+    fetchMock
+      .mockRejectedValueOnce(httpError(API_ERROR_CODE.TOKEN_EXPIRED, '过期', 401))
+      .mockRejectedValueOnce(httpError(API_ERROR_CODE.REFRESH_TOKEN_INVALID, '刷新令牌无效', 401))
+
+    // 刷新失败后向上抛出的是原始请求错误（40101）
+    await expect(apiRequest('/tasks')).rejects.toMatchObject({
+      code: API_ERROR_CODE.TOKEN_EXPIRED,
     })
 
-    await expect(mutation.execute(undefined)).rejects.toMatchObject({ status: 503 })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(notify).toHaveBeenCalledExactlyOnceWith('Service unavailable')
+    expect(getAccessToken()).toBeNull()
+    expect(emitExpired).toHaveBeenCalledOnce()
   })
 
-  it('handles concurrent and later 401 responses only once per login', async () => {
-    fetchMock.mockImplementation(() => respond(401))
+  it('登录失败（40100）不触发刷新与过期处理', async () => {
+    fetchMock.mockRejectedValueOnce(httpError(API_ERROR_CODE.UNAUTHORIZED, '邮箱或密码错误', 401))
 
-    const results = await Promise.allSettled([fetchQuery(), apiFetch('/tasks/1')])
-    expect(results.every((result) => result.status === 'rejected')).toBe(true)
-    expect(authStore.isLogin).toBe(false)
-    expect(notify).toHaveBeenCalledExactlyOnceWith(
-      'Your session has expired, please sign in again.',
+    await expect(
+      apiRequest('/auth/login', { method: 'POST', body: { email: 'a@b.com' } }),
+    ).rejects.toMatchObject({ code: API_ERROR_CODE.UNAUTHORIZED })
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(emitExpired).not.toHaveBeenCalled()
+  })
+
+  it('Refresh 接口自身失败不会再次刷新（避免无限循环）', async () => {
+    fetchMock.mockRejectedValueOnce(
+      httpError(API_ERROR_CODE.REFRESH_TOKEN_INVALID, '刷新令牌无效', 401),
     )
-    expect(push).toHaveBeenCalledExactlyOnceWith({ path: '/auth/sign-in' })
 
-    await expect(apiFetch('/tasks/2')).rejects.toMatchObject({ status: 401 })
-    expect(push).toHaveBeenCalledTimes(1)
-    expect(notify).toHaveBeenCalledTimes(1)
+    await expect(apiRequest('/auth/refresh', { method: 'POST' })).rejects.toMatchObject({
+      code: API_ERROR_CODE.REFRESH_TOKEN_INVALID,
+    })
 
-    authStore.isLogin = true
-    await expect(apiFetch('/tasks/3')).rejects.toMatchObject({ status: 401 })
-    expect(authStore.isLogin).toBe(false)
-    expect(push).toHaveBeenCalledTimes(2)
-    expect(notify).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(emitExpired).not.toHaveBeenCalled()
+  })
+
+  it('跨标签页刷新通过 Web Locks 串行化', async () => {
+    const lockRequest = vi.fn((_name: string, callback: () => Promise<unknown>) => callback())
+
+    vi.stubGlobal('navigator', { locks: { request: lockRequest } })
+
+    fetchMock
+      .mockRejectedValueOnce(httpError(API_ERROR_CODE.TOKEN_EXPIRED, '过期', 401))
+      .mockResolvedValueOnce(success({ accessToken: 'new-token', user }))
+      .mockResolvedValueOnce(success({ ok: true }))
+
+    await expect(apiRequest('/tasks')).resolves.toEqual({ ok: true })
+
+    expect(lockRequest).toHaveBeenCalledWith('graduation:auth-refresh', expect.any(Function))
+  })
+
+  it('重试后仍然过期则不再刷新', async () => {
+    fetchMock
+      .mockRejectedValueOnce(httpError(API_ERROR_CODE.TOKEN_EXPIRED, '过期', 401))
+      .mockResolvedValueOnce(success({ accessToken: 'new-token', user }))
+      .mockRejectedValueOnce(httpError(API_ERROR_CODE.TOKEN_EXPIRED, '又过期', 401))
+
+    await expect(apiRequest('/tasks')).rejects.toMatchObject({
+      code: API_ERROR_CODE.TOKEN_EXPIRED,
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(emitExpired).not.toHaveBeenCalled()
   })
 })

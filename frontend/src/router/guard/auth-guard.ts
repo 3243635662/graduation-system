@@ -1,33 +1,43 @@
+import { resolveSafeRedirect } from '@/lib/redirect'
 import pinia from '@/plugins/pinia/setup'
 import { useAuthStore } from '@/stores/auth'
 import { storeToRefs } from 'pinia'
 import type { Router } from 'vue-router'
 
+const AUTH_PAGES = ['/auth/sign-in', '/auth/sign-up']
+
+/**
+ * 公开路由：
+ * - 根路径会重定向到 /dashboard，由后续守卫继续判断
+ * - 认证页、错误页（含 404）无需登录
+ */
+function isPublicPath(path: string): boolean {
+  return path === '/' || path.startsWith('/auth/') || path.startsWith('/errors/')
+}
+
 export function setupAuthGuard(router: Router) {
-  router.beforeEach((to, from) => {
+  router.beforeEach(async (to) => {
     const authStore = useAuthStore(pinia)
-    const { isLogin } = storeToRefs(authStore)
+    const { isAuthenticated } = storeToRefs(authStore)
 
-    const authPaths = ['/auth/sign-in', '/auth/sign-up']
-    const isAuthPage = authPaths.includes(to.path)
-    const isFromAuthPage = authPaths.includes(from.path)
+    // 页面刷新时先恢复认证状态；初始化完成前不提前把用户判定为未登录
+    await authStore.initialize()
 
-    // If logged in, redirect from auth pages to the previous non-auth page (if valid), otherwise redirect to home
-    if (isLogin.value && isAuthPage) {
-      // Check if from route is valid (has path, is different from target, and is not an auth page)
-      if (from.path && from.path !== to.path && !isFromAuthPage) {
-        return from
-      }
-      // Fallback: redirect to home on first visit or invalid/unsafe source (including other auth pages)
-      return { path: '/' }
+    const isAuthPage = AUTH_PAGES.includes(to.path)
+
+    // 已登录用户访问登录/注册页，跳回目标页或工作台
+    if (isAuthenticated.value && isAuthPage) {
+      return resolveSafeRedirect(to.query.redirect)
     }
 
-    // If page requires auth but user is not logged in, redirect to sign-in page
-    if (to.meta.auth && !isLogin.value && !isAuthPage) {
+    // 未登录访问业务页面，跳转登录页并记录原本要访问的地址
+    if (!isAuthenticated.value && !isPublicPath(to.path)) {
       return {
-        name: '/auth/sign-in',
+        path: '/auth/sign-in',
         query: { redirect: to.fullPath },
       }
     }
+
+    return true
   })
 }

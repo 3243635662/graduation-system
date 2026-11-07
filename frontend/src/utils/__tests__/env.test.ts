@@ -48,31 +48,44 @@ describe('envSchema validation', () => {
     })
   })
 
-  describe('invalid environment variables', () => {
-    it('should fail when VITE_SERVER_API_URL is missing', () => {
-      const invalidEnv = {
+  describe('missing optional environment variables', () => {
+    it('should default VITE_SERVER_API_URL to an empty string when missing', () => {
+      const result = EnvSchema.safeParse({
         VITE_SERVER_API_PREFIX: '/api',
-      }
+      })
 
-      const result = EnvSchema.safeParse(invalidEnv)
-      expect(result.success).toBe(false)
-      if (!result.success) {
-        expect(result.error.issues[0].path).toContain('VITE_SERVER_API_URL')
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.VITE_SERVER_API_URL).toBe('')
       }
     })
 
-    it('should fail when VITE_SERVER_API_PREFIX is missing', () => {
-      const invalidEnv = {
+    it('should default VITE_SERVER_API_PREFIX to /api when missing', () => {
+      const result = EnvSchema.safeParse({
         VITE_SERVER_API_URL: 'https://api.example.com',
-      }
+      })
 
-      const result = EnvSchema.safeParse(invalidEnv)
-      expect(result.success).toBe(false)
-      if (!result.success) {
-        expect(result.error.issues[0].path).toContain('VITE_SERVER_API_PREFIX')
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.VITE_SERVER_API_PREFIX).toBe('/api')
       }
     })
 
+    it('should validate an empty environment with same-origin defaults', () => {
+      const result = EnvSchema.safeParse({})
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data).toEqual({
+          VITE_SERVER_API_URL: '',
+          VITE_SERVER_API_PREFIX: '/api',
+          VITE_SERVER_API_TIMEOUT: 5000,
+        })
+      }
+    })
+  })
+
+  describe('invalid environment variables', () => {
     it('should fail when VITE_SERVER_API_URL is not a valid URL', () => {
       const invalidEnv = {
         VITE_SERVER_API_URL: 'not-a-url',
@@ -186,6 +199,17 @@ describe('env module', () => {
       VITE_SERVER_API_URL: 'https://api.example.com',
       VITE_SERVER_API_PREFIX: '/v1',
       VITE_SERVER_API_TIMEOUT: 9000,
+    })
+  })
+
+  it('does not report an error when no environment variables are configured', async () => {
+    const { env, envError } = await import('@/utils/env')
+
+    expect(envError).toBeNull()
+    expect(env).toEqual({
+      VITE_SERVER_API_URL: '',
+      VITE_SERVER_API_PREFIX: '/api',
+      VITE_SERVER_API_TIMEOUT: 5000,
     })
   })
 })

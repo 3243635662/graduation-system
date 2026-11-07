@@ -1,41 +1,45 @@
+import { resolveSafeRedirect } from '@/lib/redirect'
+import { resetDynamicRoutes, setupDynamicRoutes } from '@/router/dynamic'
 import { useAuthStore } from '@/stores/auth'
+import type { LoginInput, RegisterInput } from '@graduation/shared'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 
 export function useAuth() {
   const router = useRouter()
-
   const authStore = useAuthStore()
-  const { isLogin } = storeToRefs(authStore)
-  const loading = shallowRef(false)
+  const { user, roles, isAuthenticated, isInitializing } = storeToRefs(authStore)
 
-  function logout() {
-    isLogin.value = false
+  async function login(input: LoginInput): Promise<void> {
+    await authStore.login(input)
 
-    router.push({ path: '/auth/sign-in' })
+    // 登录成功后确保业务路由已注册，再跳转到原本要访问的页面
+    setupDynamicRoutes(router)
+    await router.replace(resolveSafeRedirect(router.currentRoute.value.query.redirect))
   }
 
-  function toHome() {
-    router.push({ path: '/dashboard' })
+  async function register(input: RegisterInput): Promise<void> {
+    await authStore.register(input)
+
+    setupDynamicRoutes(router)
+    await router.replace('/dashboard')
   }
 
-  async function login() {
-    loading.value = true
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    // mock login
-    isLogin.value = true
-    loading.value = false
+  async function logout(): Promise<void> {
+    await authStore.logout()
 
-    const redirect = router.currentRoute.value.query.redirect
-    if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
-      toHome()
-    } else {
-      router.push(redirect)
-    }
+    // 退出登录后清理动态路由，避免残留的业务路由被未登录用户访问
+    resetDynamicRoutes(router)
+    await router.replace('/auth/sign-in')
   }
 
   return {
-    loading,
-    logout,
+    user,
+    roles,
+    isAuthenticated,
+    isInitializing,
     login,
+    register,
+    logout,
   }
 }

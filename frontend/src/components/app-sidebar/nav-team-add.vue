@@ -32,8 +32,8 @@ const form = useForm({
       position: 'top-center',
       description: h(
         'pre',
-        { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
-        h('code', { class: 'text-white' }, JSON.stringify(value, null, 2)),
+        { class: 'mt-2 w-[340px] rounded-md bg-muted p-4' },
+        h('code', { class: 'text-foreground' }, JSON.stringify(value, null, 2)),
       ),
     })
 

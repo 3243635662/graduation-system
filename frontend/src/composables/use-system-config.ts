@@ -48,8 +48,8 @@ export function useSystemConfig<S extends z.ZodObject<z.ZodRawShape>>({
             toast('You submitted the following values:', {
               description: h(
                 'pre',
-                { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
-                h('code', { class: 'text-white' }, JSON.stringify(config, null, 2)),
+                { class: 'mt-2 w-[340px] rounded-md bg-muted p-4' },
+                h('code', { class: 'text-foreground' }, JSON.stringify(config, null, 2)),
               ),
             })
           },
@@ -82,10 +82,10 @@ export function useSystemConfig<S extends z.ZodObject<z.ZodRawShape>>({
               toast('System config created with default value.', {
                 description: h(
                   'pre',
-                  { class: 'mt-2 w-[340px] rounded-md bg-slate-950 p-4' },
+                  { class: 'mt-2 w-[340px] rounded-md bg-muted p-4' },
                   h(
                     'code',
-                    { class: 'text-white' },
+                    { class: 'text-foreground' },
                     JSON.stringify({ key, description, value: initialConfig }, null, 2),
                   ),
                 ),

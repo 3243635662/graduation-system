@@ -61,6 +61,8 @@ export default defineConfig({
   },
 
   test: {
+    // 认证 Store / 请求层会加载 Pinia 持久化插件（依赖 sessionStorage）
+    environment: 'happy-dom',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

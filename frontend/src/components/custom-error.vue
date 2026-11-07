@@ -16,7 +16,7 @@ defineProps<{
     <h2 class="mt-4 text-2xl font-bold">
       {{ subtitle }}
     </h2>
-    <p class="text-stone-400">
+    <p class="text-muted-foreground">
       {{ error }}
     </p>
 

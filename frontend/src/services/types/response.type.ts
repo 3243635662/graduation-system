@@ -21,6 +21,10 @@ export const API_ERROR_CODE = {
   BAD_REQUEST: 40000,
   VALIDATION_FAILED: 40001,
   UNAUTHORIZED: 40100,
+  /** Access Token 过期/失效：前端应静默刷新并重试 */
+  TOKEN_EXPIRED: 40101,
+  /** Refresh Token 无效/过期/已撤销：前端应清理会话并跳转登录 */
+  REFRESH_TOKEN_INVALID: 40102,
   FORBIDDEN: 40300,
   NOT_FOUND: 40400,
   CONFLICT: 40900,

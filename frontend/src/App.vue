@@ -17,8 +17,8 @@ onMounted(() => {
     toast.error(t('envError'), {
       description: h(
         'pre',
-        { class: 'mt-2 rounded-md bg-slate-950 p-4 text-wrap' },
-        h('code', { class: 'text-white' }, JSON.stringify(flattenError, null, 2)),
+        { class: 'mt-2 rounded-md bg-muted p-4 text-wrap' },
+        h('code', { class: 'text-foreground' }, JSON.stringify(flattenError, null, 2)),
       ),
       duration: 10000,
     })

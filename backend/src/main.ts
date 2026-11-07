@@ -43,6 +43,11 @@ async function bootstrap() {
       },
       'access-token', // 认证方案的名称，供其他 Swagger 装饰器引用
     )
+    .addCookieAuth(
+      'refresh_token',
+      { type: 'apiKey', in: 'cookie', description: 'Refresh Token（HttpOnly Cookie）' },
+      'refresh-token',
+    )
     .build()
 
   // 根据 NestJS Controller 和 DTO 生成 OpenAPI 文档
