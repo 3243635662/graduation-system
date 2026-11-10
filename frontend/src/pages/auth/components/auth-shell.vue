@@ -4,6 +4,7 @@ import { GraduationCapIcon, MoonIcon, ShieldCheckIcon, SunIcon } from '@lucide/v
 import { useColorMode } from '@vueuse/core'
 import type { Component } from 'vue'
 import { computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface FeatureItem {
   icon: Component
@@ -21,15 +22,18 @@ const props = withDefaults(
     securityNotice?: string
   }>(),
   {
-    heroTitle: 'Build a Better',
-    heroHighlight: 'Future Together',
-    heroTagline: 'Innovative · Professional · Efficient',
-    securityNotice: 'Your data is secure with us · 高校毕业设计综合管理平台',
     features: () => [],
   },
 )
 
+const { t } = useI18n()
 const mode = useColorMode()
+
+// props 默认值只在创建时求值一次，故用 computed 回退到词条以跟随语言切换
+const heroTitleText = computed(() => props.heroTitle ?? t('authShell.hero.title'))
+const heroHighlightText = computed(() => props.heroHighlight ?? t('authShell.hero.highlight'))
+const heroTaglineText = computed(() => props.heroTagline ?? t('authShell.hero.tagline'))
+const securityNoticeText = computed(() => props.securityNotice ?? t('authShell.securityNotice'))
 
 /**
  * 背景图多尺寸 WebP 候选集。
@@ -105,70 +109,75 @@ async function toggleTheme(event: MouseEvent) {
 </script>
 
 <template>
-  <!-- 固定全屏，绝对禁止页面滚动条，保持单屏完整呈现 -->
+  <!-- 单屏优先、小屏可滚动：min-h-dvh 避免手机软键盘弹出后表单被永久裁切 -->
   <div
-    class="fixed inset-0 h-screen w-screen overflow-hidden flex flex-col justify-between bg-background text-foreground selection:bg-primary selection:text-primary-foreground"
+    class="relative isolate flex min-h-dvh w-full flex-col justify-between overflow-x-hidden bg-background text-foreground selection:bg-primary selection:text-primary-foreground"
   >
     <!-- 背景图片与蒙层：白天完全不加蒙层，保留照片原貌；仅夜间压暗 -->
-    <div class="absolute inset-0 -z-10 overflow-hidden pointer-events-none bg-background">
+    <div class="pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-background">
       <img
         :src="backgroundImage"
         :srcset="bgSrcset"
         sizes="max(100vw, 178vh)"
-        alt="Campus background"
+        :alt="$t('authShell.backgroundAlt')"
         decoding="async"
         fetchpriority="high"
-        class="auth-bg-img w-full h-full object-cover object-center brightness-100 contrast-[1.02] dark:brightness-[0.86] dark:contrast-[1.06] dark:saturate-[1.06]"
+        class="h-full w-full animate-auth-bg-zoom object-cover object-center contrast-[1.02] transition-[filter] duration-800 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-transform motion-reduce:animate-none dark:brightness-[0.86] dark:contrast-[1.06] dark:saturate-[1.06]"
       />
 
-      <!-- 夜间蒙层：仅在 dark 下生效，颜色仍取自主题变量 -->
+      <!--
+        夜间蒙层 + 主色晕染（让 6 套主题在夜间彼此可区分）。
+        这里刻意不加 opacity 过渡：主题切换由 View Transition 圆形揭幕负责，
+        若此处再过渡，新帧快照会捕获到半透明状态，导致夜间压暗不到位。
+      -->
       <div
-        class="auth-overlay absolute inset-0 opacity-0 dark:opacity-100 bg-linear-to-b from-background/46 via-background/33 to-background/42"
+        class="absolute inset-0 bg-linear-to-b from-background/46 via-background/33 to-background/42 opacity-0 dark:opacity-100"
       />
-      <!-- 夜间主色晕染：让 6 套主题在夜间彼此可区分 -->
       <div
-        class="auth-overlay absolute inset-0 opacity-0 dark:opacity-100 bg-linear-to-tr from-primary/8 via-transparent to-primary/5"
+        class="absolute inset-0 bg-linear-to-tr from-primary/8 via-transparent to-primary/5 opacity-0 dark:opacity-100"
       />
     </div>
 
     <!-- 顶栏 -->
     <header
-      class="w-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 pt-5 pb-2 flex items-center justify-between relative z-20 shrink-0"
+      class="relative z-20 mx-auto flex w-full max-w-7xl shrink-0 items-center justify-between px-6 pt-5 pb-2 sm:px-10 lg:px-12"
     >
       <router-link
         to="/"
-        class="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+        class="group flex items-center gap-3 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div
-          class="w-9 h-9 rounded-xl glass-surface flex items-center justify-center transition-transform duration-300 group-hover:scale-105"
+          class="glass-surface flex size-9 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-105"
         >
-          <GraduationCapIcon class="w-5 h-5 text-primary" />
+          <GraduationCapIcon class="size-5 text-primary" />
         </div>
         <div class="flex flex-col text-media-foreground drop-shadow-md">
-          <span class="text-base font-bold tracking-tight leading-tight">Graduation</span>
+          <span class="text-base leading-tight font-bold tracking-tight">{{
+            $t('authShell.brandName')
+          }}</span>
           <span
-            class="text-[10px] font-normal text-media-foreground/80 tracking-wider uppercase leading-tight"
-            >Management System</span
+            class="text-[10px] leading-tight font-normal tracking-wider text-media-foreground/80 uppercase"
+            >{{ $t('authShell.brandSubtitle') }}</span
           >
         </div>
       </router-link>
 
-      <div class="flex items-center gap-2 auth-toolbar">
+      <div class="auth-toolbar flex items-center gap-2">
         <LanguageChange />
 
         <!-- 自定义日夜切换按钮：圆形扩散揭幕动画 -->
         <button
           type="button"
-          class="auth-theme-toggle"
-          :aria-label="mode === 'dark' ? '切换为日间模式' : '切换为夜间模式'"
-          :title="mode === 'dark' ? '切换为日间模式' : '切换为夜间模式'"
+          class="relative flex size-8 cursor-pointer items-center justify-center rounded-lg hover:-translate-y-px active:scale-[0.94]"
+          :aria-label="$t(mode === 'dark' ? 'authShell.theme.toLight' : 'authShell.theme.toDark')"
+          :title="$t(mode === 'dark' ? 'authShell.theme.toLight' : 'authShell.theme.toDark')"
           @click="toggleTheme"
         >
           <SunIcon
-            class="w-4 h-4 rotate-0 scale-100 transition-transform duration-500 dark:-rotate-90 dark:scale-0 absolute"
+            class="absolute size-4 scale-100 rotate-0 transition-transform duration-500 dark:-rotate-90 dark:scale-0"
           />
           <MoonIcon
-            class="w-4 h-4 rotate-90 scale-0 transition-transform duration-500 dark:rotate-0 dark:scale-100 absolute"
+            class="absolute size-4 scale-0 rotate-90 transition-transform duration-500 dark:rotate-0 dark:scale-100"
           />
         </button>
       </div>
@@ -176,45 +185,47 @@ async function toggleTheme(event: MouseEvent) {
 
     <!-- 中间核心区 -->
     <main
-      class="w-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 py-2 flex-1 flex items-center min-h-0 relative z-20"
+      class="relative z-20 mx-auto flex w-full max-w-7xl min-h-0 flex-1 items-center px-6 py-2 sm:px-10 lg:px-12"
     >
-      <div class="w-full grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+      <div class="grid w-full items-center gap-8 lg:grid-cols-12 lg:gap-12">
         <!-- 左侧文案与 3 个玻璃特性卡 -->
-        <section class="lg:col-span-7 flex flex-col justify-center py-2">
+        <section class="flex flex-col justify-center py-2 lg:col-span-7">
           <div class="space-y-3 sm:space-y-4">
             <h1
-              class="auth-rise text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.12] text-media-foreground drop-shadow-lg"
+              class="animate-auth-rise text-3xl leading-[1.12] font-extrabold tracking-tight text-media-foreground drop-shadow-lg motion-reduce:animate-none sm:text-4xl lg:text-5xl"
             >
-              <span>{{ heroTitle }}</span>
+              <span>{{ heroTitleText }}</span>
               <span
-                class="auth-sheen block mt-1 sm:mt-1.5 italic font-serif font-semibold bg-linear-to-r from-media-foreground via-media-foreground to-primary bg-clip-text text-transparent"
+                class="mt-1 block animate-auth-sheen bg-linear-to-r from-media-foreground via-media-foreground to-primary bg-clip-text bg-position-[0%_50%] bg-size-[220%_100%] font-serif font-semibold text-transparent italic motion-reduce:animate-none sm:mt-1.5"
               >
-                {{ heroHighlight }}
+                {{ heroHighlightText }}
               </span>
             </h1>
 
             <div
-              class="auth-rise auth-delay-1 flex items-center gap-3 text-media-foreground/80 text-xs sm:text-sm font-medium tracking-wide drop-shadow-md"
+              class="flex animate-auth-rise items-center gap-3 text-xs font-medium tracking-wide text-media-foreground/80 drop-shadow-md [animation-delay:120ms] motion-reduce:animate-none sm:text-sm"
             >
-              <span class="w-6 h-[2px] bg-media-foreground/80 rounded-full" />
-              <span>{{ heroTagline }}</span>
+              <span class="h-[2px] w-6 rounded-full bg-media-foreground/80" />
+              <span>{{ heroTaglineText }}</span>
             </div>
           </div>
 
-          <!-- 底部 3 块水岸浮动玻璃拟态特性卡 -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-8 lg:mt-12">
+          <!-- 底部 3 块水岸浮动玻璃拟态特性卡（玻璃效果见 auth-glass-tile utility） -->
+          <div class="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:mt-12">
             <div
               v-for="(item, idx) in features"
               :key="idx"
-              class="auth-feature-card group p-3 flex items-center gap-2.5"
+              class="auth-glass-tile relative isolate flex animate-auth-rise-in items-center gap-2.5 overflow-hidden rounded-2xl p-3 motion-reduce:animate-none"
               :style="{ animationDelay: `${260 + idx * 90}ms` }"
             >
-              <div class="auth-feature-icon shrink-0">
-                <component :is="item.icon" class="w-4 h-4" />
+              <div
+                class="auth-glass-tile-icon flex size-9 shrink-0 items-center justify-center rounded-xl"
+              >
+                <component :is="item.icon" class="size-4" />
               </div>
-              <div class="flex flex-col min-w-0">
-                <span class="text-xs font-semibold tracking-wide truncate">{{ item.title }}</span>
-                <span v-if="item.subtitle" class="text-[10px] opacity-70 truncate mt-0.5">{{
+              <div class="flex min-w-0 flex-col">
+                <span class="truncate text-xs font-semibold tracking-wide">{{ item.title }}</span>
+                <span v-if="item.subtitle" class="mt-0.5 truncate text-[10px] opacity-70">{{
                   item.subtitle
                 }}</span>
               </div>
@@ -223,7 +234,9 @@ async function toggleTheme(event: MouseEvent) {
         </section>
 
         <!-- 右侧表单卡片插槽 -->
-        <section class="auth-rise auth-delay-2 lg:col-span-5 flex justify-center lg:justify-end">
+        <section
+          class="flex animate-auth-rise justify-center [animation-delay:240ms] motion-reduce:animate-none lg:col-span-5 lg:justify-end"
+        >
           <slot />
         </section>
       </div>
@@ -231,158 +244,34 @@ async function toggleTheme(event: MouseEvent) {
 
     <!-- 底栏 -->
     <footer
-      class="w-full max-w-7xl mx-auto px-6 sm:px-10 lg:px-12 py-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-media-foreground/85 relative z-20 shrink-0 drop-shadow-md"
+      class="relative z-20 mx-auto flex w-full max-w-7xl shrink-0 flex-col items-center justify-between gap-2 px-6 py-3 text-xs text-media-foreground/85 drop-shadow-md sm:flex-row sm:px-10 lg:px-12"
     >
       <div class="flex items-center gap-1.5">
-        <ShieldCheckIcon class="w-3.5 h-3.5 text-media-foreground shrink-0" />
-        <span class="text-[11px] sm:text-xs">{{ securityNotice }}</span>
+        <ShieldCheckIcon class="size-3.5 shrink-0 text-media-foreground" />
+        <span class="text-[11px] sm:text-xs">{{ securityNoticeText }}</span>
       </div>
 
+      <!-- 暂无条款 / 隐私 / 帮助页面，因此保持不可点击的纯文本（不设 cursor-pointer） -->
       <div class="flex items-center gap-3 text-[11px] sm:text-xs">
-        <span class="hover:text-media-foreground transition-colors cursor-pointer"
-          >Terms of Service</span
-        >
-        <span>|</span>
-        <span class="hover:text-media-foreground transition-colors cursor-pointer"
-          >Privacy Policy</span
-        >
-        <span>|</span>
-        <span class="hover:text-media-foreground transition-colors cursor-pointer">Help</span>
+        <span>{{ $t('authShell.footer.terms') }}</span>
+        <span aria-hidden="true">|</span>
+        <span>{{ $t('authShell.footer.privacy') }}</span>
+        <span aria-hidden="true">|</span>
+        <span>{{ $t('authShell.footer.help') }}</span>
       </div>
     </footer>
   </div>
 </template>
 
 <!--
-  View Transition API 的伪元素必须在全局作用域下声明，
-  scoped 样式无法选中 ::view-transition-* 伪元素。
+  只保留两件 Tailwind 表达不了的事：
+  1. 卡片悬停扫光的 ::after 伪元素（没有对应 class）；
+  2. prefers-reduced-motion 覆盖，需要压过 utilities 层里的悬停位移。
+  View Transition 伪元素与工具栏穿透选择器在 assets/auth-effects.css。
 -->
-<style>
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-
-::view-transition-new(root) {
-  z-index: 9999;
-}
-
-::view-transition-old(root) {
-  z-index: 1;
-}
-</style>
-
 <style scoped>
-/*
- * 认证页工具栏按钮统一样式。
- * 颜色全部由主题变量混合得出（--card / --border / --ring / --foreground），
- * 因此 6 套主题 × 明暗模式都会自动跟随，无需 dark: 单独覆盖。
- */
-.auth-toolbar :deep(button),
-.auth-theme-toggle {
-  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
-  background: color-mix(in oklab, var(--card) 55%, transparent);
-  color: var(--foreground);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  backdrop-filter: blur(12px) saturate(150%);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 60%, transparent);
-  transition:
-    background 0.25s,
-    color 0.25s,
-    border-color 0.25s,
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s;
-}
-
-.auth-toolbar :deep(button:hover),
-.auth-theme-toggle:hover {
-  background: color-mix(in oklab, var(--card) 80%, transparent);
-  border-color: color-mix(in oklab, var(--ring) 65%, transparent);
-}
-
-/* 自定义日夜切换按钮的位置与尺寸 */
-.auth-theme-toggle {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.5rem;
-  cursor: pointer;
-}
-
-/* 背景图片与蒙层过渡（非 View Transition 时的 fallback） */
-.auth-bg-img {
-  transition: filter 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: auth-bg-zoom 26s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform;
-}
-
-.auth-overlay {
-  transition: background 0.8s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* ===================== 入场动画 ===================== */
-.auth-rise {
-  animation: auth-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.auth-delay-1 {
-  animation-delay: 120ms;
-}
-
-.auth-delay-2 {
-  animation-delay: 240ms;
-}
-
-@keyframes auth-rise {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 16px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes auth-bg-zoom {
-  from {
-    transform: scale(1.07);
-  }
-  to {
-    transform: scale(1);
-  }
-}
-
-/* ===================== 玻璃拟态特性卡 ===================== */
-/* 全部取色自 --card / --border / --ring / --foreground / --primary，随主题联动 */
-.auth-feature-card {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border-radius: 1rem;
-  color: var(--card-foreground);
-  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
-  background: color-mix(in oklab, var(--card) 62%, transparent);
-  -webkit-backdrop-filter: blur(22px) saturate(170%);
-  backdrop-filter: blur(22px) saturate(170%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--card) 85%, transparent),
-    0 10px 28px -16px color-mix(in oklab, var(--foreground) 32%, transparent);
-  /* backwards：动画结束后还原基础样式，避免 fill 状态锁死 hover 的 transform */
-  animation: auth-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-  transition:
-    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.45s ease,
-    border-color 0.45s ease,
-    background 0.45s ease;
-}
-
 /* 悬停扫光：一道斜向高光自左向右掠过 */
-.auth-feature-card::after {
+.auth-glass-tile::after {
   content: '';
   position: absolute;
   inset: -50% -140%;
@@ -397,16 +286,7 @@ async function toggleTheme(event: MouseEvent) {
   transform: translate3d(-60%, 0, 0);
 }
 
-.auth-feature-card:hover {
-  transform: translate3d(0, -6px, 0) scale(1.015);
-  border-color: color-mix(in oklab, var(--ring) 60%, transparent);
-  background: color-mix(in oklab, var(--card) 80%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in oklab, var(--card) 95%, transparent),
-    0 22px 46px -20px color-mix(in oklab, var(--foreground) 40%, transparent);
-}
-
-.auth-feature-card:hover::after {
+.auth-glass-tile:hover::after {
   opacity: 1;
   animation: auth-shine 1.05s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -420,82 +300,14 @@ async function toggleTheme(event: MouseEvent) {
   }
 }
 
-/* 卡片内图标玻璃块：悬停时轻微旋转放大 */
-.auth-feature-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.75rem;
-  color: var(--primary);
-  border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
-  background: color-mix(in oklab, var(--card) 72%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 85%, transparent);
-  transition:
-    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.45s ease,
-    border-color 0.45s ease;
-}
-
-.auth-feature-card:hover .auth-feature-icon {
-  transform: rotate(-6deg) scale(1.1);
-  border-color: color-mix(in oklab, var(--primary) 40%, transparent);
-  background: color-mix(in oklab, var(--primary) 16%, transparent);
-}
-
-/* ===================== 标题渐变流光 ===================== */
-.auth-sheen {
-  background-size: 220% 100%;
-  background-position: 0% 50%;
-  animation:
-    auth-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) 80ms both,
-    auth-sheen-shift 9s ease-in-out 1.2s infinite;
-}
-
-@keyframes auth-sheen-shift {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-/* 主题按钮：悬停微抬、按下回弹 */
-.auth-theme-toggle:hover {
-  transform: translateY(-1px);
-}
-
-.auth-theme-toggle:active {
-  transform: scale(0.94);
-}
-
-.auth-theme-toggle:focus-visible {
-  outline: none;
-  box-shadow:
-    0 0 0 2px var(--background),
-    0 0 0 4px var(--ring);
-}
-
-/* 尊重系统"减弱动态效果"设置 */
+/* 尊重系统「减弱动态效果」设置：停用扫光与悬停位移 */
 @media (prefers-reduced-motion: reduce) {
-  .auth-rise,
-  .auth-feature-card,
-  .auth-bg-img,
-  .auth-sheen {
-    animation: none !important;
-    opacity: 1 !important;
-    transform: none !important;
-  }
-
-  .auth-feature-card::after {
+  .auth-glass-tile::after {
     display: none;
   }
 
-  .auth-feature-card:hover,
-  .auth-feature-card:hover .auth-feature-icon {
+  .auth-glass-tile:hover,
+  .auth-glass-tile:hover .auth-glass-tile-icon {
     transform: none;
   }
 }

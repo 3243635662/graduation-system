@@ -1,37 +1,41 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
 import { GraduationCapIcon, ShieldCheckIcon, SparklesIcon } from '@lucide/vue'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import AuthShell from './components/auth-shell.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 
-const features = [
+// computed 让特性卡文案随语言切换即时更新
+const features = computed(() => [
   {
     icon: SparklesIcon,
-    title: 'Account Security',
-    subtitle: '账号安全与鉴权机制',
+    title: t('authShell.forgotPassword.features.security.title'),
+    subtitle: t('authShell.forgotPassword.features.security.subtitle'),
   },
   {
     icon: ShieldCheckIcon,
-    title: 'Data Protection',
-    subtitle: '院校认证多重校验',
+    title: t('authShell.forgotPassword.features.protection.title'),
+    subtitle: t('authShell.forgotPassword.features.protection.subtitle'),
   },
   {
     icon: GraduationCapIcon,
-    title: 'Help & Support',
-    subtitle: '教务处与学院技术支持',
+    title: t('authShell.forgotPassword.features.support.title'),
+    subtitle: t('authShell.forgotPassword.features.support.subtitle'),
   },
-]
+])
 </script>
 
 <template>
   <AuthShell
     background-image="/images/auth/campus-lake.png"
-    hero-title="Account"
-    hero-highlight="Recovery"
-    hero-tagline="Secure · Reliable · Protected"
+    :hero-title="$t('authShell.forgotPassword.hero.title')"
+    :hero-highlight="$t('authShell.forgotPassword.hero.highlight')"
+    :hero-tagline="$t('authShell.forgotPassword.hero.tagline')"
     :features="features"
   >
     <div class="w-full max-w-[430px] rounded-[32px] glass-card p-7 sm:p-9 relative overflow-hidden">

@@ -122,6 +122,21 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
+  /*
+   * 认证页动效统一注册为动画令牌，组件里直接用 animate-auth-* 调用：
+   * - auth-rise：内容上浮入场（both，结束后保持终态）
+   * - auth-rise-in：同上但 backwards 填充，动画结束后交还基础样式，
+   *   避免 fill 状态锁死特性卡的 hover transform
+   * - auth-sheen：标题入场上浮 + 渐变流光，两条动画叠加
+   * - auth-bg-zoom：背景照片缓慢回缩
+   */
+  --animate-auth-rise: auth-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-auth-rise-in: auth-rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-auth-sheen:
+    auth-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) 80ms both,
+    auth-sheen-shift 9s ease-in-out 1.2s infinite;
+  --animate-auth-bg-zoom: auth-bg-zoom 26s cubic-bezier(0.22, 1, 0.36, 1) both;
+
   @keyframes accordion-down {
     from {
       height: 0;
@@ -137,6 +152,36 @@
     }
     to {
       height: 0;
+    }
+  }
+
+  @keyframes auth-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 16px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes auth-bg-zoom {
+    from {
+      transform: scale(1.07);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes auth-sheen-shift {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
     }
   }
 }
@@ -173,6 +218,58 @@
   box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 55%, transparent);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
   backdrop-filter: blur(18px) saturate(150%);
+}
+
+/*
+ * 认证页水岸浮动玻璃卡。
+ * 多层阴影 + color-mix + backdrop-filter + 悬停位移这类效果写进 template 只会变成
+ * 一长串 arbitrary class，因此收成一个 utility；布局（relative / rounded / padding /
+ * flex）仍然留在 template 里由 Tailwind 管理。
+ * 扫光伪元素与 prefers-reduced-motion 覆盖留在组件 scoped 样式里（::after 没有对应的
+ * class）。
+ */
+@utility auth-glass-tile {
+  color: var(--card-foreground);
+  border: 1px solid color-mix(in oklab, var(--border) 50%, transparent);
+  background-color: color-mix(in oklab, var(--card) 62%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, var(--card) 85%, transparent),
+    0 10px 28px -16px color-mix(in oklab, var(--foreground) 32%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.45s ease,
+    border-color 0.45s ease,
+    background-color 0.45s ease;
+
+  &:hover {
+    transform: translate3d(0, -6px, 0) scale(1.015);
+    border-color: color-mix(in oklab, var(--ring) 60%, transparent);
+    background-color: color-mix(in oklab, var(--card) 80%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, var(--card) 95%, transparent),
+      0 22px 46px -20px color-mix(in oklab, var(--foreground) 40%, transparent);
+  }
+
+  /* 卡内图标块：随卡片悬停轻微旋转放大 */
+  &:hover .auth-glass-tile-icon {
+    transform: rotate(-6deg) scale(1.1);
+    border-color: color-mix(in oklab, var(--primary) 40%, transparent);
+    background-color: color-mix(in oklab, var(--primary) 16%, transparent);
+  }
+}
+
+/* 卡片内图标玻璃块 */
+@utility auth-glass-tile-icon {
+  color: var(--primary);
+  border: 1px solid color-mix(in oklab, var(--border) 45%, transparent);
+  background-color: color-mix(in oklab, var(--card) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 85%, transparent);
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.45s ease,
+    border-color 0.45s ease;
 }
 
 /* shimmer */

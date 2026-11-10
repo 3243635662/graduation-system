@@ -140,5 +140,88 @@
   "homePage": {
     "searchKeyWords": "Search Menu"
   },
+  "authShell": {
+    "brandName": "Graduation",
+    "brandSubtitle": "Management System",
+    "backgroundAlt": "Campus background",
+    "theme": {
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode"
+    },
+    "footer": {
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy",
+      "help": "Help"
+    },
+    "hero": {
+      "title": "Build a Better",
+      "highlight": "Future Together",
+      "tagline": "Innovative · Professional · Efficient"
+    },
+    "securityNotice": "Your data is secure with us · Graduation Project Management Platform",
+    "signIn": {
+      "hero": {
+        "title": "Build a Better",
+        "highlight": "Future Together",
+        "tagline": "Innovative · Professional · Efficient"
+      },
+      "features": {
+        "academic": {
+          "title": "Academic Excellence",
+          "subtitle": "Academic standards & quality assurance"
+        },
+        "collaboration": {
+          "title": "Collaborative Research",
+          "subtitle": "Faculty-student collaboration & guidance"
+        },
+        "achievement": {
+          "title": "Dream Achievement",
+          "subtitle": "Defense assessment & archiving"
+        }
+      }
+    },
+    "signUp": {
+      "hero": {
+        "title": "Start Your",
+        "highlight": "Academic Journey",
+        "tagline": "Standardized · Intelligent · Collaborative"
+      },
+      "features": {
+        "matching": {
+          "title": "Smart Matching",
+          "subtitle": "Two-way topic selection & project setup"
+        },
+        "tracking": {
+          "title": "Process Tracking",
+          "subtitle": "Full-cycle milestone management"
+        },
+        "defense": {
+          "title": "Milestone Defense",
+          "subtitle": "Defense assessment & degree archiving"
+        }
+      }
+    },
+    "forgotPassword": {
+      "hero": {
+        "title": "Account",
+        "highlight": "Recovery",
+        "tagline": "Secure · Reliable · Protected"
+      },
+      "features": {
+        "security": {
+          "title": "Account Security",
+          "subtitle": "Account security & authentication"
+        },
+        "protection": {
+          "title": "Data Protection",
+          "subtitle": "Multi-factor institutional verification"
+        },
+        "support": {
+          "title": "Help & Support",
+          "subtitle": "Registry & faculty IT support"
+        }
+      }
+    }
+  },
   "envError": "Env error: you should check your .env file"
 }

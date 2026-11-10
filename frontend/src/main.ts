@@ -4,6 +4,7 @@ import App from './App.vue'
 import { setupPlugins } from './plugins'
 
 import '@/assets/index.css'
+import '@/assets/auth-effects.css'
 import '@/assets/scrollbar.css'
 import '@/assets/themes.css'
 import '@/assets/chart-theme.css'

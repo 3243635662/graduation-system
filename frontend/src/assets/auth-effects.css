@@ -1,0 +1,57 @@
+/**
+ * 认证页专用特效。
+ *
+ * 这里只放「必须全局作用域」的规则，其余样式请走 Tailwind 工具类：
+ * 1. View Transition 的 ::view-transition-* 伪元素不受 Vue scoped 样式约束，
+ *    只能在全局声明；
+ * 2. 顶栏语言切换是 shadcn Button 子组件，只能通过后代选择器穿透组件边界，
+ *    并且这些声明必须优先于 Button 自带的 Tailwind 工具类——无层级 CSS 才能做到，
+ *    所以刻意不放进 @layer 里。组件内自己的按钮复用同一套皮肤，避免重复定义。
+ */
+
+/* ===== View Transition：主题切换的圆形扩散揭幕 ===== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+/* ===== 认证页工具栏按钮玻璃皮肤 ===== */
+.auth-toolbar button {
+  color: var(--foreground);
+  border: 1px solid color-mix(in oklab, var(--border) 55%, transparent);
+  background-color: color-mix(in oklab, var(--card) 55%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--card) 60%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  /*
+   * translate / scale 单独列出：组件里用 hover:-translate-y-px、active:scale-[0.94]
+   * 驱动微交互，Tailwind 4 使用独立变换属性而非 transform。
+   */
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    color 0.25s,
+    box-shadow 0.25s,
+    translate 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-toolbar button:hover {
+  background-color: color-mix(in oklab, var(--card) 80%, transparent);
+  border-color: color-mix(in oklab, var(--ring) 65%, transparent);
+}
+
+/* 上面的 box-shadow 会盖掉 shadcn Button 的 ring，这里统一改用 outline 聚焦 */
+.auth-toolbar button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}

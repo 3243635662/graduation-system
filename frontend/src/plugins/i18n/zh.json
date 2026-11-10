@@ -140,5 +140,61 @@
   "homePage": {
     "searchKeyWords": "搜索菜单"
   },
+  "authShell": {
+    "brandName": "毕业设计",
+    "brandSubtitle": "综合管理平台",
+    "backgroundAlt": "校园背景",
+    "theme": {
+      "toLight": "切换为日间模式",
+      "toDark": "切换为夜间模式"
+    },
+    "footer": {
+      "terms": "服务条款",
+      "privacy": "隐私政策",
+      "help": "帮助中心"
+    },
+    "hero": {
+      "title": "携手共创",
+      "highlight": "美好未来",
+      "tagline": "创新 · 专业 · 高效"
+    },
+    "securityNotice": "您的数据安全由我们守护 · 高校毕业设计综合管理平台",
+    "signIn": {
+      "hero": {
+        "title": "携手共创",
+        "highlight": "美好未来",
+        "tagline": "创新 · 专业 · 高效"
+      },
+      "features": {
+        "academic": { "title": "学术卓越", "subtitle": "学术规范与质量把控" },
+        "collaboration": { "title": "协同研究", "subtitle": "师生协同与全程指导" },
+        "achievement": { "title": "成就梦想", "subtitle": "成果答辩与卓越赋能" }
+      }
+    },
+    "signUp": {
+      "hero": {
+        "title": "开启你的",
+        "highlight": "学术旅程",
+        "tagline": "规范 · 智能 · 协同"
+      },
+      "features": {
+        "matching": { "title": "智能匹配", "subtitle": "智能双向选题与立项" },
+        "tracking": { "title": "流程追踪", "subtitle": "全周期节点规范闭环" },
+        "defense": { "title": "里程碑答辩", "subtitle": "答辩考核与学位归档" }
+      }
+    },
+    "forgotPassword": {
+      "hero": {
+        "title": "账号",
+        "highlight": "找回",
+        "tagline": "安全 · 可靠 · 受保护"
+      },
+      "features": {
+        "security": { "title": "账号安全", "subtitle": "账号安全与鉴权机制" },
+        "protection": { "title": "数据保护", "subtitle": "院校认证多重校验" },
+        "support": { "title": "帮助支持", "subtitle": "教务处与学院技术支持" }
+      }
+    }
+  },
   "envError": "环境变量错误：请检查您的 .env 配置文件"
 }
