@@ -142,6 +142,28 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
       // 5xx 错误不向客户端暴露内部异常信息
       if (status >= 500) {
+        /*
+         * 例外：503 是业务主动抛出的「依赖不可用」（Redis / SMTP）。
+         * 这类响应体由我们自己编写，只说明可公开的故障类型，
+         * 只要带显式 code 就透传，其余 5xx 一律脱敏。
+         */
+        const serviceUnavailable = exception.getResponse()
+
+        if (
+          status === HttpStatus.SERVICE_UNAVAILABLE &&
+          isRecord(serviceUnavailable) &&
+          typeof serviceUnavailable.code === 'number'
+        ) {
+          return {
+            status,
+            body: {
+              code: serviceUnavailable.code,
+              data: serviceUnavailable.data ?? null,
+              message: getMessage(serviceUnavailable.message) ?? '服务暂时不可用，请稍后重试',
+            },
+          }
+        }
+
         return {
           status,
           body: {

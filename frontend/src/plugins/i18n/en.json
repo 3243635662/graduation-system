@@ -223,5 +223,69 @@
       }
     }
   },
-  "envError": "Env error: you should check your .env file"
+  "loginForm": {
+    "badge": "WELCOME BACK",
+    "title": "Sign In to Your Account",
+    "description": "Enter your email and password to continue",
+    "emailLabel": "Email address",
+    "emailPlaceholder": "Email address",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "rememberMe": "Remember me",
+    "submit": "Sign In",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign Up",
+    "failed": "Sign-in failed, please check your email and password",
+    "forgotUnavailable": "Password recovery is not available yet. Please contact your administrator to reset your password"
+  },
+  "envError": "Env error: you should check your .env file",
+  "registerForm": {
+    "badge": "GET STARTED",
+    "title": "Create an Account",
+    "description": "Enter your details to create your student account",
+    "fullNameLabel": "Full name",
+    "fullNamePlaceholder": "Full name",
+    "emailLabel": "Email address",
+    "emailPlaceholder": "Email address",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Password (at least 8 characters)",
+    "confirmPasswordLabel": "Confirm password",
+    "confirmPasswordPlaceholder": "Confirm password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "studentHint": "Accounts created here are {role} by default. Teacher accounts are assigned by your institution.",
+    "studentRole": "student accounts",
+    "submit": "Create Account",
+    "haveAccount": "Already have an account?",
+    "signIn": "Sign In",
+    "emailCode": {
+      "label": "Email verification code",
+      "placeholder": "6-digit code",
+      "send": "Send code",
+      "sending": "Sending…",
+      "resend": "Resend in {seconds}s",
+      "sent": "Code sent. Please check your inbox (and spam folder)",
+      "hint": "The code is valid for 2 minutes and can be used only once",
+      "invalidEmail": "Please enter a valid email address first",
+      "wrongCode": "Incorrect code, please try again",
+      "expired": "The code has expired, please request a new one",
+      "exhausted": "Too many incorrect attempts, please request a new code",
+      "tooMany": "Too many requests, please try again later",
+      "sendFailed": "Failed to send the code, please try again later",
+      "registerFailed": "Registration failed, please check your details"
+    }
+  },
+  "validation": {
+    "email": "Please enter a valid email address",
+    "passwordRequired": "Please enter your password",
+    "displayNameMin": "Display name must be at least 2 characters",
+    "displayNameMax": "Display name must be at most 30 characters",
+    "emailCodeFormat": "Verification code must be 6 digits",
+    "passwordMin": "Password must be at least 8 characters",
+    "passwordMax": "Password must be at most 128 characters",
+    "confirmPasswordRequired": "Please enter the password again",
+    "passwordMismatch": "The two passwords do not match"
+  }
 }

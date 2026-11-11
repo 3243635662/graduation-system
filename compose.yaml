@@ -42,11 +42,12 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?请配置REDIS_PASSWORD}
 
+    # maxmemory + noeviction：内存受限时拒绝写入而不是淘汰仍有效的验证码/限流键
     command:
       [
         'sh',
         '-c',
-        'exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}"',
+        'exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}" --maxmemory ${REDIS_MAXMEMORY:-128mb} --maxmemory-policy noeviction',
       ]
 
     ports:

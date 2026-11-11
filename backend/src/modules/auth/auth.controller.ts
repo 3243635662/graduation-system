@@ -1,4 +1,4 @@
-import type { AuthResult } from '@graduation/shared'
+import type { AuthResult, SendEmailCodeResult } from '@graduation/shared'
 import {
   Body,
   Controller,
@@ -15,20 +15,31 @@ import type { Request, Response } from 'express'
 
 import { ApiErrorResponse } from '../../common/decorators/api-error-response.decorator.js'
 import { ApiSuccessResponse } from '../../common/decorators/api-success-response.decorator.js'
+import { ApiSuccessResult } from '../../common/interceptors/api-success-result.js'
 import { validationIssuesSchema } from '../../common/openapi/validation-issues.schema.js'
 import { RateLimit } from '../../common/rate-limit/rate-limit.decorator.js'
 import { RateLimitGuard } from '../../common/rate-limit/rate-limit.guard.js'
 import { AuthService } from './auth.service.js'
 import { getRefreshCookieOptions } from './config/auth.config.js'
 import { CurrentUser } from './decorators/current-user.decorator.js'
+import { EmailCodeService } from './email-code/email-code.service.js'
 import { AccessTokenGuard } from './guards/access-token.guard.js'
 import { OriginGuard } from './guards/origin.guard.js'
-import { authResultSchema, authUserSchema } from './schemas/auth-response.schema.js'
+import {
+  authResultSchema,
+  authUserSchema,
+  sendEmailCodeResultSchema,
+} from './schemas/auth-response.schema.js'
 import { loginSchema, type LoginInput } from './schemas/login.schema.js'
 import { registerSchema, type RegisterInput } from './schemas/register.schema.js'
+import {
+  sendRegisterCodeSchema,
+  type SendRegisterCodeInput,
+} from './schemas/send-register-code.schema.js'
 import { TokenService } from './services/token.service.js'
 import type { AuthUserContext } from './types/auth-user.type.js'
 import { extractBearerToken } from './utils/bearer-token.util.js'
+import { getClientIp } from './utils/client-ip.util.js'
 import { REFRESH_TOKEN_COOKIE, parseCookie, serializeCookie } from './utils/cookie.util.js'
 
 /** Cookie 兜底有效期（秒），仅当 Token 配置异常时使用 */
@@ -59,17 +70,68 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly tokenService: TokenService,
+    private readonly emailCodeService: EmailCodeService,
   ) {}
+
+  /**
+   * 发送注册邮箱验证码
+   *
+   * - 验证码 6 位数字，有效期默认 120 秒
+   * - 同一邮箱 60 秒内只能发送一次，单邮箱每小时 5 次，单 IP 每小时 20 次
+   * - 邮箱已注册时同样返回成功结构（不发信），避免账号枚举
+   * - Redis 或 SMTP 不可用时返回 503，绝不降级放行
+   */
+  @Post('email-codes/register')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ windowMs: 60_000, limit: 10 })
+  @ApiOperation({
+    summary: '发送注册邮箱验证码',
+    description:
+      '邮箱已注册时同样返回成功结构但不会发送邮件，用于避免账号枚举。真实的发送频率由 Redis 强制限制。',
+  })
+  @ApiSuccessResponse({
+    description: '验证码已受理（不代表邮箱一定可注册）',
+    dataSchema: sendEmailCodeResultSchema,
+  })
+  @ApiErrorResponse({
+    status: 400,
+    code: 40001,
+    message: '请求参数校验失败',
+    dataSchema: validationIssuesSchema,
+  })
+  @ApiErrorResponse({ status: 429, code: 42900, message: '验证码发送过于频繁，请稍后再试' })
+  @ApiErrorResponse({
+    status: 503,
+    code: 50300,
+    message: '验证码或邮件服务暂时不可用，请稍后重试',
+  })
+  async sendRegisterCode(
+    @Body({ schema: sendRegisterCodeSchema }) body: SendRegisterCodeInput,
+    @Req() request: Request,
+  ): Promise<ApiSuccessResult<SendEmailCodeResult>> {
+    const result = await this.emailCodeService.requestRegisterCode({
+      email: body.email,
+      ip: getClientIp(request),
+    })
+
+    return new ApiSuccessResult(result, '如果该邮箱可以注册，验证码将发送至邮箱')
+  }
 
   /**
    * 学生注册
    *
+   * 必须携带邮箱验证码：Redis 原子校验并消费成功后才创建账号。
    * 默认分配 STUDENT 角色，不接受客户端指定角色。
    */
   @Post('register')
   @UseGuards(RateLimitGuard)
   @RateLimit({ windowMs: 10 * 60_000, limit: 10 })
-  @ApiOperation({ summary: '学生注册（默认 STUDENT 角色）' })
+  @ApiOperation({
+    summary: '学生注册（需要邮箱验证码，默认 STUDENT 角色）',
+    description:
+      '请先调用 POST /api/auth/email-codes/register 获取验证码。验证码一次性有效，校验与消费在同一次 Redis 原子操作中完成。',
+  })
   @ApiSuccessResponse({
     status: 201,
     description: '注册成功，同时建立登录会话',
@@ -81,8 +143,16 @@ export class AuthController {
     message: '请求参数校验失败',
     dataSchema: validationIssuesSchema,
   })
+  @ApiErrorResponse({ status: 400, code: 40011, message: '邮箱验证码不正确' })
+  @ApiErrorResponse({ status: 400, code: 40012, message: '验证码已过期，请重新获取' })
+  @ApiErrorResponse({ status: 400, code: 40013, message: '验证码错误次数过多，请重新获取' })
   @ApiErrorResponse({ status: 409, code: 40900, message: '该邮箱已被注册' })
   @ApiErrorResponse({ status: 429, code: 42900, message: '请求过于频繁，请稍后再试' })
+  @ApiErrorResponse({
+    status: 503,
+    code: 50300,
+    message: '验证码服务暂时不可用，请稍后重试',
+  })
   async register(
     @Body({ schema: registerSchema }) body: RegisterInput,
     @Req() request: Request,

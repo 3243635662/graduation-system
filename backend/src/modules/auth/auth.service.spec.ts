@@ -1,9 +1,15 @@
-import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common'
 import * as argon2 from 'argon2'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PrismaService } from '../../prisma/prisma.service.js'
 import { AuthService } from './auth.service.js'
+import type { EmailCodeService } from './email-code/email-code.service.js'
 import { TokenService } from './services/token.service.js'
 
 interface PrismaMock {
@@ -54,13 +60,19 @@ const baseUser = {
 describe('AuthService', () => {
   let prisma: PrismaMock
   let tokenService: TokenService
+  let emailCodeService: { verifyAndConsumeRegisterCode: ReturnType<typeof vi.fn> }
   let service: AuthService
 
   beforeEach(() => {
     process.env['JWT_ACCESS_SECRET'] = 'unit-test-secret'
     prisma = createPrismaMock()
     tokenService = new TokenService()
-    service = new AuthService(prisma as unknown as PrismaService, tokenService)
+    emailCodeService = { verifyAndConsumeRegisterCode: vi.fn().mockResolvedValue(undefined) }
+    service = new AuthService(
+      prisma as unknown as PrismaService,
+      tokenService,
+      emailCodeService as unknown as EmailCodeService,
+    )
   })
 
   afterEach(() => {
@@ -68,6 +80,14 @@ describe('AuthService', () => {
   })
 
   describe('register', () => {
+    const registerInput = {
+      displayName: '张三',
+      email: 'student@example.com',
+      emailCode: '123456',
+      password: 'password123',
+      confirmPassword: 'password123',
+    }
+
     it('创建用户、关联 STUDENT 角色并建立会话', async () => {
       prisma.user.findUnique.mockResolvedValue(null)
       prisma.role.findUnique.mockResolvedValue(studentRole)
@@ -75,15 +95,7 @@ describe('AuthService', () => {
       prisma.userRole.create.mockResolvedValue({})
       prisma.authSession.create.mockResolvedValue({ id: 'session-1' })
 
-      const result = await service.register(
-        {
-          displayName: '张三',
-          email: 'student@example.com',
-          password: 'password123',
-          confirmPassword: 'password123',
-        },
-        {},
-      )
+      const result = await service.register(registerInput, {})
 
       expect(result.user.roles).toEqual([studentRole])
       expect(result.refreshToken).toBeTruthy()
@@ -95,22 +107,28 @@ describe('AuthService', () => {
       expect(prisma.userRole.create).toHaveBeenCalledWith({
         data: { userId: 'user-1', roleId: studentRole.id },
       })
+      expect(emailCodeService.verifyAndConsumeRegisterCode).toHaveBeenCalledWith({
+        email: 'student@example.com',
+        code: '123456',
+      })
     })
 
-    it('邮箱已存在时抛出 ConflictException', async () => {
+    it('验证码校验失败时不创建用户', async () => {
+      prisma.user.findUnique.mockResolvedValue(null)
+      emailCodeService.verifyAndConsumeRegisterCode.mockRejectedValue(
+        new BadRequestException({ code: 40011, data: null, message: '邮箱验证码不正确' }),
+      )
+
+      await expect(service.register(registerInput, {})).rejects.toBeInstanceOf(BadRequestException)
+      expect(prisma.user.create).not.toHaveBeenCalled()
+      expect(prisma.$transaction).not.toHaveBeenCalled()
+    })
+
+    it('邮箱已存在时抛出 ConflictException，且不消耗验证码', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'existing' })
 
-      await expect(
-        service.register(
-          {
-            displayName: '张三',
-            email: 'student@example.com',
-            password: 'password123',
-            confirmPassword: 'password123',
-          },
-          {},
-        ),
-      ).rejects.toBeInstanceOf(ConflictException)
+      await expect(service.register(registerInput, {})).rejects.toBeInstanceOf(ConflictException)
+      expect(emailCodeService.verifyAndConsumeRegisterCode).not.toHaveBeenCalled()
     })
   })
 

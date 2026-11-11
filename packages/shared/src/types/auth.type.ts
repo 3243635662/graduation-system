@@ -44,12 +44,35 @@ export interface AuthResult {
 
 /**
  * 注册输入（前后端共用的字段形状）
+ *
+ * emailCode 为邮箱验证码（6 位数字），必须先通过发送验证码接口获取。
  */
 export interface RegisterInput {
   displayName: string
   email: string
+  emailCode: string
   password: string
   confirmPassword: string
+}
+
+/**
+ * 发送邮箱验证码的输入
+ */
+export interface SendEmailCodeInput {
+  email: string
+}
+
+/**
+ * 发送邮箱验证码的结果
+ *
+ * 出于防枚举考虑，即使邮箱已注册也返回同样结构：
+ * 前端只能用 resendAfter 控制重新发送倒计时，无法据此判断邮箱是否已注册。
+ */
+export interface SendEmailCodeResult {
+  /** 验证码有效期（秒） */
+  expiresIn: number
+  /** 允许重新发送的冷却时间（秒） */
+  resendAfter: number
 }
 
 /**

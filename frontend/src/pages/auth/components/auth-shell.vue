@@ -109,9 +109,12 @@ async function toggleTheme(event: MouseEvent) {
 </script>
 
 <template>
-  <!-- 单屏优先、小屏可滚动：min-h-dvh 避免手机软键盘弹出后表单被永久裁切 -->
+  <!--
+    全屏固定：页面本身不滚动，高度恒为一个视口（dvh 随手机软键盘收缩）。
+    表单单据变高时（如出现校验提示）只让中间区域内部滚动，顶栏与底栏保持不动。
+  -->
   <div
-    class="relative isolate flex min-h-dvh w-full flex-col justify-between overflow-x-hidden bg-background text-foreground selection:bg-primary selection:text-primary-foreground"
+    class="relative isolate flex h-dvh w-full flex-col justify-between overflow-hidden bg-background text-foreground selection:bg-primary selection:text-primary-foreground"
   >
     <!-- 背景图片与蒙层：白天完全不加蒙层，保留照片原貌；仅夜间压暗 -->
     <div class="pointer-events-none absolute inset-0 -z-10 overflow-hidden bg-background">
@@ -183,11 +186,11 @@ async function toggleTheme(event: MouseEvent) {
       </div>
     </header>
 
-    <!-- 中间核心区 -->
+    <!-- 中间核心区：内容超高时只在这里内部滚动，用 m-auto 居中且不会裁掉顶部 -->
     <main
-      class="relative z-20 mx-auto flex w-full max-w-7xl min-h-0 flex-1 items-center px-6 py-2 sm:px-10 lg:px-12"
+      class="relative z-20 mx-auto flex w-full max-w-7xl min-h-0 flex-1 overflow-y-auto px-6 py-2 sm:px-10 lg:px-12"
     >
-      <div class="grid w-full items-center gap-8 lg:grid-cols-12 lg:gap-12">
+      <div class="m-auto grid w-full items-center gap-8 lg:grid-cols-12 lg:gap-12">
         <!-- 左侧文案与 3 个玻璃特性卡 -->
         <section class="flex flex-col justify-center py-2 lg:col-span-7">
           <div class="space-y-3 sm:space-y-4">
@@ -278,7 +281,7 @@ async function toggleTheme(event: MouseEvent) {
   background: linear-gradient(
     100deg,
     transparent 38%,
-    color-mix(in oklab, var(--card) 65%, transparent) 50%,
+    color-mix(in oklab, var(--media-foreground) 26%, transparent) 50%,
     transparent 62%
   );
   opacity: 0;

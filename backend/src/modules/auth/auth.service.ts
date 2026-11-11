@@ -9,6 +9,7 @@ import {
 import * as argon2 from 'argon2'
 
 import { PrismaService } from '../../prisma/prisma.service.js'
+import { EmailCodeService } from './email-code/email-code.service.js'
 import type { LoginInput } from './schemas/login.schema.js'
 import type { RegisterInput } from './schemas/register.schema.js'
 import { TokenService } from './services/token.service.js'
@@ -117,6 +118,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
+    private readonly emailCodeService: EmailCodeService,
   ) {
     const grace = Number(process.env['REFRESH_ROTATION_GRACE_MS'] ?? 30_000)
     this.rotationGraceMs = Number.isFinite(grace) && grace >= 0 ? grace : 30_000
@@ -125,21 +127,42 @@ export class AuthService {
   /**
    * 学生注册
    *
+   * - 必须先通过邮箱验证码校验：Redis 原子校验并消费，失败即拒绝注册
    * - 角色固定为 STUDENT，忽略任何客户端传入的角色字段
    * - 用户、角色关联、会话在同一事务内创建
+   *
+   * 注意：Redis 与数据库不是同一个事务系统。验证码消费成功但事务失败时，
+   * 用户需要重新获取验证码，这是可接受的；反过来绝不允许「未验证就注册成功」。
    */
   async register(input: RegisterInput, meta: SessionMeta): Promise<SessionResult> {
+    // 先查重复，避免白白消耗一次有效验证码
+    const existing = await this.prisma.user.findUnique({
+      where: { email: input.email },
+      select: { id: true },
+    })
+
+    if (existing) {
+      throw new ConflictException('该邮箱已被注册')
+    }
+
+    // 原子校验并消费验证码；Redis 不可用时抛出 503，绝不降级放行
+    await this.emailCodeService.verifyAndConsumeRegisterCode({
+      email: input.email,
+      code: input.emailCode,
+    })
+
     const passwordHash = await hashPassword(input.password)
     const refresh = this.tokenService.generateRefreshToken()
     const expiresAt = new Date(Date.now() + this.tokenService.getRefreshTtlMs())
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.user.findUnique({
+      // 事务内再查一次，兜住「验证码校验后、事务开始前」的并发注册
+      const duplicated = await tx.user.findUnique({
         where: { email: input.email },
         select: { id: true },
       })
 
-      if (existing) {
+      if (duplicated) {
         throw new ConflictException('该邮箱已被注册')
       }
 

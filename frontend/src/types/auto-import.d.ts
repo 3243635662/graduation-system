@@ -62,6 +62,7 @@ declare global {
   const readonly: typeof import('vue').readonly
   const ref: typeof import('vue').ref
   const resolveComponent: typeof import('vue').resolveComponent
+  const resolveRegisterErrorKey: typeof import('../composables/use-email-code').resolveRegisterErrorKey
   const resolveSystemConfigValue: typeof import('../composables/use-system-config-query').resolveSystemConfigValue
   const shallowReactive: typeof import('vue').shallowReactive
   const shallowReadonly: typeof import('vue').shallowReadonly
@@ -77,6 +78,8 @@ declare global {
   const useAuthStore: typeof import('../stores/auth').useAuthStore
   const useCssModule: typeof import('vue').useCssModule
   const useCssVars: typeof import('vue').useCssVars
+  const useEmailCode: typeof import('../composables/use-email-code').useEmailCode
+  const useFieldErrors: typeof import('../composables/use-field-errors').useFieldErrors
   const useId: typeof import('vue').useId
   const useLink: (typeof import('vue-router'))['useLink']
   const useModal: typeof import('../composables/use-modal').useModal
@@ -102,6 +105,9 @@ declare global {
   // @ts-ignore
   export type { Component, Slot, Slots, ComponentPublicInstance, ComputedRef, DirectiveBinding, ExtractDefaultPropTypes, ExtractPropTypes, ExtractPublicPropTypes, InjectionKey, PropType, Ref, ShallowRef, MaybeRef, MaybeRefOrGetter, VNode, WritableComputedRef } from 'vue'
   import('vue')
+  // @ts-ignore
+  export type { FieldErrorItem } from '../composables/use-field-errors'
+  import('../composables/use-field-errors')
   // @ts-ignore
   export type { Theme, ContentLayout } from '../constants/themes'
   import('../constants/themes')

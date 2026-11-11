@@ -54,6 +54,23 @@ export const authUserSchema: SchemaObject = {
   },
 }
 
+export const sendEmailCodeResultSchema: SchemaObject = {
+  type: 'object',
+  required: ['expiresIn', 'resendAfter'],
+  properties: {
+    expiresIn: {
+      type: 'integer',
+      description: '验证码有效期（秒）',
+      example: 120,
+    },
+    resendAfter: {
+      type: 'integer',
+      description: '允许重新发送的冷却时间（秒）',
+      example: 60,
+    },
+  },
+}
+
 export const authResultSchema: SchemaObject = {
   type: 'object',
   required: ['accessToken', 'user'],

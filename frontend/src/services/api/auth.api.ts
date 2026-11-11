@@ -1,5 +1,11 @@
 import { apiRequest } from '@/lib/api-client'
-import type { AuthResult, AuthUser, LoginInput, RegisterInput } from '@graduation/shared'
+import type {
+  AuthResult,
+  AuthUser,
+  LoginInput,
+  RegisterInput,
+  SendEmailCodeResult,
+} from '@graduation/shared'
 
 /**
  * Auth 接口封装
@@ -13,6 +19,18 @@ export function register(input: RegisterInput): Promise<AuthResult> {
   return apiRequest<AuthResult>('/auth/register', {
     method: 'POST',
     body: input,
+  })
+}
+
+/**
+ * 发送注册邮箱验证码
+ *
+ * 返回的 resendAfter 用于前端倒计时展示；真正的发送频率由服务端 Redis 强制限制。
+ */
+export function sendRegisterCode(email: string): Promise<SendEmailCodeResult> {
+  return apiRequest<SendEmailCodeResult>('/auth/email-codes/register', {
+    method: 'POST',
+    body: { email },
   })
 }
 

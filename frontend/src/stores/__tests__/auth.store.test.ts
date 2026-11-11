@@ -58,19 +58,42 @@ describe('auth store', () => {
     expect(store.user).toBeNull()
   })
 
-  it('注册成功后直接进入登录态', async () => {
+  it('注册成功后直接进入登录态，并把验证码一起提交', async () => {
     authApi.register.mockResolvedValue({ accessToken: 'access-2', user: studentUser })
 
     const store = useAuthStore()
     await store.register({
       displayName: '张三',
       email: 'student@example.com',
+      emailCode: '123456',
       password: 'password123',
       confirmPassword: 'password123',
     })
 
+    expect(authApi.register).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'student@example.com', emailCode: '123456' }),
+    )
     expect(store.isAuthenticated).toBe(true)
     expect(store.accessToken).toBe('access-2')
+  })
+
+  it('验证码错误时注册失败且不进入登录态', async () => {
+    authApi.register.mockRejectedValue(new Error('邮箱验证码不正确'))
+
+    const store = useAuthStore()
+
+    await expect(
+      store.register({
+        displayName: '张三',
+        email: 'student@example.com',
+        emailCode: '000000',
+        password: 'password123',
+        confirmPassword: 'password123',
+      }),
+    ).rejects.toThrow('邮箱验证码不正确')
+
+    expect(store.isAuthenticated).toBe(false)
+    expect(store.user).toBeNull()
   })
 
   it('收到请求层的刷新事件后同步会话状态', () => {
