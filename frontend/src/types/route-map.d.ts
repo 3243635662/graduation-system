@@ -52,9 +52,7 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | '/auth/'
       | '/auth/forgot-password'
-      | '/auth/otp'
       | '/auth/sign-in'
-      | '/auth/sign-in-2'
       | '/auth/sign-up'
     >,
     '/auth/': RouteRecordInfo<
@@ -71,23 +69,9 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/auth/otp': RouteRecordInfo<
-      '/auth/otp',
-      '/auth/otp',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/auth/sign-in': RouteRecordInfo<
       '/auth/sign-in',
       '/auth/sign-in',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '/auth/sign-in-2': RouteRecordInfo<
-      '/auth/sign-in-2',
-      '/auth/sign-in-2',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -155,9 +139,7 @@ declare module 'vue-router/auto-routes' {
         | '/auth'
         | '/auth/'
         | '/auth/forgot-password'
-        | '/auth/otp'
         | '/auth/sign-in'
-        | '/auth/sign-in-2'
         | '/auth/sign-up'
       views:
         | 'default'
@@ -180,25 +162,9 @@ declare module 'vue-router/auto-routes' {
       pathParamNames:
         | never
     }
-    'src/pages/auth/otp.vue': {
-      routes:
-        | '/auth/otp'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
     'src/pages/auth/sign-in.vue': {
       routes:
         | '/auth/sign-in'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/auth/sign-in-2.vue': {
-      routes:
-        | '/auth/sign-in-2'
       views:
         | never
       pathParamNames:

@@ -227,8 +227,10 @@ async function toggleTheme(event: MouseEvent) {
                 <component :is="item.icon" class="size-4" />
               </div>
               <div class="flex min-w-0 flex-col">
-                <span class="truncate text-xs font-semibold tracking-wide">{{ item.title }}</span>
-                <span v-if="item.subtitle" class="mt-0.5 truncate text-[10px] opacity-70">{{
+                <span class="truncate text-[13px] font-semibold tracking-wide">{{
+                  item.title
+                }}</span>
+                <span v-if="item.subtitle" class="mt-0.5 truncate text-[11px] opacity-75">{{
                   item.subtitle
                 }}</span>
               </div>

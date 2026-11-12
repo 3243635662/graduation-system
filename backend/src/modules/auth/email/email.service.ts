@@ -88,6 +88,16 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * 取用（必要时创建）单例 transporter 与 SMTP 配置
+   *
+   * - 惰性创建：首次真正要发信/验证连接时才读环境变量并建连接，避免应用启动时就依赖 SMTP
+   * - 创建成功即缓存，后续调用直接复用，不重复建连接
+   * - 创建失败会缓存失败原因：之后每次调用都立刻抛 503，不反复读配置、不重复刷错误日志
+   *
+   * @returns transporter 与已校验过的 SMTP 配置
+   * @throws {ServiceUnavailableException} SMTP 配置缺失或非法（code 50300），对外只给统一文案
+   */
   private ensureTransporter(): { transporter: MailTransporter; config: SmtpConfig } {
     if (this.transporter && this.config) {
       return { transporter: this.transporter, config: this.config }
@@ -118,6 +128,13 @@ export class EmailService implements OnModuleInit {
     }
   }
 
+  /**
+   * 把 catch 到的任意值转成可写进日志的字符串
+   *
+   * smtp / nodemailer 抛出的不一定是 Error（也可能是字符串或普通对象），
+   * 统一在这里收口，避免日志模板拼接时因非 Error 值而二次抛错。
+   * 只取 message，不输出 error 对象本身，防止把授权码等信息带进日志。
+   */
   private describeError(error: unknown): string {
     if (error instanceof Error) return error.message
 
