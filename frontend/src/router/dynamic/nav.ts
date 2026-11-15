@@ -73,3 +73,37 @@ export function flattenPages(menuTree: MenuTreeNode[]): MenuTreeNode[] {
     return flattenPages(node.children ?? [])
   })
 }
+
+/**
+ * 菜单树去重
+ *
+ * 多角色合并后同一个菜单可能重复出现，这里以 id（无 id 时用 code）为单位全局去重，
+ * 并返回全新对象，避免修改调用方传入的数据。
+ */
+export function dedupeMenuTree(menuTree: MenuTreeNode[]): MenuTreeNode[] {
+  const seen = new Set<string>()
+
+  const walk = (nodes: MenuTreeNode[]): MenuTreeNode[] =>
+    nodes.flatMap((node) => {
+      const key = node.id ?? `${node.type}:${node.code}`
+
+      if (seen.has(key)) {
+        console.error(`[menu] 菜单 ${node.code} 重复出现，已忽略重复节点`)
+
+        return []
+      }
+
+      seen.add(key)
+
+      const children = node.children ? walk(node.children) : undefined
+
+      return [
+        {
+          ...node,
+          children: children && children.length > 0 ? children : undefined,
+        },
+      ]
+    })
+
+  return walk(menuTree)
+}

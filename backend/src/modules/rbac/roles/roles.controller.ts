@@ -1,15 +1,28 @@
-import { Controller, Get, Param } from '@nestjs/common'
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
+import { PermissionCode } from '@graduation/shared'
+import { Controller, Get, Param, UseGuards } from '@nestjs/common'
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 
 import { ApiErrorResponse } from '../../../common/decorators/api-error-response.decorator.js'
 import { ApiSuccessResponse } from '../../../common/decorators/api-success-response.decorator.js'
 import { validationIssuesSchema } from '../../../common/openapi/validation-issues.schema.js'
 import { idParamSchema, type IdParam } from '../../../common/schemas/id-param.schema.js'
+import { AccessTokenGuard } from '../../auth/guards/access-token.guard.js'
+import { PermissionsGuard } from '../authorization/permissions.guard.js'
+import { RequirePermissions } from '../authorization/require-permissions.decorator.js'
 import { roleSchema } from './roles.schema.js'
 import { RolesService } from './roles.service.js'
 
+/**
+ * 角色模板查询接口
+ *
+ * 角色列表属于管理数据：必须登录且拥有 rbac:role:read，
+ * 不能因为「菜单里看不到」就默认接口可以匿名访问。
+ */
 @ApiTags('RBAC - 角色管理')
+@ApiBearerAuth('access-token')
 @Controller('roles')
+@UseGuards(AccessTokenGuard, PermissionsGuard)
+@RequirePermissions(PermissionCode.RBAC_ROLE_READ)
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

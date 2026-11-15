@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { CommandGroup, CommandItem } from '@/components/ui/command'
-import { navData, otherPages } from '@/constants/sidebar-data'
+import { otherPages } from '@/constants/sidebar-data'
+import { useMenuStore } from '@/stores/menu'
+import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 
 import type { NavGroup, NavItem } from '../app-sidebar/types'
 import CommandItemHasIcon from './command-item-has-icon.vue'
@@ -23,7 +26,11 @@ function getFlatNavItems(navData: NavGroup[]): NavItem[] {
   return flatItems
 }
 
-const commands = getFlatNavItems([...navData, ...otherPages])
+// 搜索面板同样只展示当前用户真实可访问的菜单
+const menuStore = useMenuStore()
+const { navGroups } = storeToRefs(menuStore)
+
+const commands = computed(() => getFlatNavItems([...navGroups.value, ...otherPages]))
 
 const router = useRouter()
 const route = useRoute()

@@ -38,7 +38,6 @@ declare global {
   const isShallow: typeof import('vue').isShallow
   const logout: (typeof import('../composables/use-auth'))['logout']
   const markRaw: typeof import('vue').markRaw
-  const navData: typeof import('../constants/sidebar-data').navData
   const nextTick: typeof import('vue').nextTick
   const onActivated: typeof import('vue').onActivated
   const onBeforeMount: typeof import('vue').onBeforeMount
@@ -82,6 +81,7 @@ declare global {
   const useFieldErrors: typeof import('../composables/use-field-errors').useFieldErrors
   const useId: typeof import('vue').useId
   const useLink: (typeof import('vue-router'))['useLink']
+  const useMenuStore: typeof import('../stores/menu').useMenuStore
   const useModal: typeof import('../composables/use-modal').useModal
   const useModel: typeof import('vue').useModel
   const useRoute: typeof import('vue-router').useRoute

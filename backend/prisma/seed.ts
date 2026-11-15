@@ -1,7 +1,19 @@
 import 'dotenv/config'
-import { DEFAULT_MENU_TREE, type MenuTreeNode } from '@graduation/shared'
+import {
+  DEFAULT_MENU_CACHE_KEY_PREFIX,
+  DEFAULT_MENU_TREE,
+  LEGACY_SUPER_ADMIN_ROLE_CODE,
+  PRESET_PERMISSIONS,
+  PRESET_ROLES,
+  ROLE_MENU_CODES,
+  ROLE_PERMISSION_CODES,
+  RoleCode,
+  buildMenuCacheVersionKey,
+  type MenuTreeNode,
+} from '@graduation/shared'
 import { PrismaMariaDb } from '@prisma/adapter-mariadb'
 import * as argon2 from 'argon2'
+import { createClient } from 'redis'
 
 import { Prisma, PrismaClient } from '../generated/prisma/client.js'
 
@@ -27,6 +39,15 @@ const adminEmail = process.env['SUPER_ADMIN_EMAIL']!
 const adminPassword = process.env['SUPER_ADMIN_PASSWORD']!
 const adminDisplayName = process.env['SUPER_ADMIN_DISPLAY_NAME']!
 
+/**
+ * 学校根组织信息。
+ *
+ * 单学校系统只允许一个 SCHOOL 根节点；已存在时保留管理员维护过的名称，
+ * 不会用环境变量覆盖，避免 Seed 篡改线上组织数据。
+ */
+const schoolName = process.env['SCHOOL_NAME']?.trim() || '示范大学'
+const schoolCode = process.env['SCHOOL_CODE']?.trim() || 'SCHOOL-ROOT'
+
 // ==========================================
 // 2. Prisma 7 + MariaDB Adapter
 // ==========================================
@@ -36,120 +57,20 @@ const prisma = new PrismaClient({
 })
 
 // ==========================================
-// 3. 固定系统角色
+// 3. 预置角色与授权矩阵（唯一来源：@graduation/shared）
 // ==========================================
-
-const roles = [
-  { code: 'SUPER_ADMIN', name: '超级管理员', description: '拥有系统全部管理权限', isSystem: true },
-  {
-    code: 'SCHOOL_ADMIN',
-    name: '学校管理员',
-    description: '负责学校级别的系统管理',
-    isSystem: true,
-  },
-  {
-    code: 'DEPARTMENT_ADMIN',
-    name: '院系管理员',
-    description: '负责院系级别的业务管理',
-    isSystem: true,
-  },
-  { code: 'TEACHER', name: '指导教师', description: '负责毕业设计指导工作', isSystem: true },
-  { code: 'STUDENT', name: '学生', description: '参与毕业设计的学生', isSystem: true },
-] as const
-
-const ROLE_CODES = roles.map((role) => role.code)
-
-type RoleCode = (typeof roles)[number]['code']
+//
+// 角色是职责模板，彼此平级，不存在继承关系。
+// 管理边界由 UserRole.scopeOrgUnitId 决定，而不是角色层级。
+// 菜单矩阵、权限矩阵与角色定义全部维护在 shared 的 constants/rbac.ts，
+// Seed 只负责把它们幂等写入数据库。
+//
+// 旧版 SUPER_ADMIN 不在七角色之列：它的角色行保留用于审计，
+// 但状态改为 DISABLED，且不再产生任何新的分配。
 
 // ==========================================
-// 4. 默认角色菜单分配（RoleMenu 只关联 PAGE 节点）
+// 4. 角色菜单 / 权限分配校验
 // ==========================================
-
-/**
- * 角色 -> 页面编码的映射
- *
- * 注意：
- * 1. 这里只维护 PAGE 编码，DIRECTORY 仅用于导航分组，不写入 RoleMenu。
- * 2. 菜单树中的角色说明只是注释，不能作为授权依据，授权以本表为准。
- * 3. 本表是「默认初始化」数据，运行 Seed 不会覆盖管理员后续的额外授权。
- */
-const ROLE_MENU_CODES: Record<RoleCode, readonly string[]> = {
-  SUPER_ADMIN: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'MY_TOPIC',
-    'TOPIC_REVIEW',
-    'MY_PROJECT',
-    'GUIDANCE_STUDENTS',
-    'PROCESS_REVIEW',
-    'PROCESS_MONITOR',
-    'THESIS_SUBMISSION',
-    'THESIS_REVIEW',
-    'DEFENSE_MANAGEMENT',
-    'GRADE_MANAGEMENT',
-    'ACHIEVEMENT_ARCHIVE',
-    'AI_ASSISTANT',
-    'USER_MANAGEMENT',
-    'DEPARTMENT_MANAGEMENT',
-    'MAJOR_MANAGEMENT',
-    'ROLE_MANAGEMENT',
-    'MENU_MANAGEMENT',
-  ],
-  SCHOOL_ADMIN: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'TOPIC_REVIEW',
-    'PROCESS_REVIEW',
-    'PROCESS_MONITOR',
-    'DEFENSE_MANAGEMENT',
-    'GRADE_MANAGEMENT',
-    'ACHIEVEMENT_ARCHIVE',
-    'AI_ASSISTANT',
-    'USER_MANAGEMENT',
-    'DEPARTMENT_MANAGEMENT',
-    'MAJOR_MANAGEMENT',
-    'ROLE_MANAGEMENT',
-  ],
-  DEPARTMENT_ADMIN: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'TOPIC_REVIEW',
-    'PROCESS_REVIEW',
-    'PROCESS_MONITOR',
-    'DEFENSE_MANAGEMENT',
-    'GRADE_MANAGEMENT',
-    'ACHIEVEMENT_ARCHIVE',
-    'AI_ASSISTANT',
-    'USER_MANAGEMENT',
-    'MAJOR_MANAGEMENT',
-  ],
-  TEACHER: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'GUIDANCE_STUDENTS',
-    'PROCESS_REVIEW',
-    'THESIS_REVIEW',
-    'DEFENSE_MANAGEMENT',
-    'AI_ASSISTANT',
-  ],
-  STUDENT: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'MY_TOPIC',
-    'MY_PROJECT',
-    'THESIS_SUBMISSION',
-    'AI_ASSISTANT',
-  ],
-}
-
-/** 各角色默认关联数量，用于启动时校验分配表是否被误改 */
-const EXPECTED_ROLE_MENU_COUNTS: Record<RoleCode, number> = {
-  SUPER_ADMIN: 19,
-  SCHOOL_ADMIN: 13,
-  DEPARTMENT_ADMIN: 11,
-  TEACHER: 7,
-  STUDENT: 6,
-}
 
 // ==========================================
 // 5. 菜单树工具
@@ -228,17 +149,36 @@ function collectPageCodes(nodes: MenuTreeNode[]): Set<string> {
   return codes
 }
 
+/** 只允许学生拥有的个人业务页面 */
+const STUDENT_ONLY_PAGES = ['MY_TOPIC', 'MY_PROJECT', 'THESIS_SUBMISSION'] as const
+
+/** 不属于班级协管员职责的管理页面 */
+const COORDINATOR_FORBIDDEN_PAGES = [
+  'USER_MANAGEMENT',
+  'ROLE_MANAGEMENT',
+  'MENU_MANAGEMENT',
+  'DEPARTMENT_MANAGEMENT',
+  'MAJOR_MANAGEMENT',
+] as const
+
+/**
+ * 校验角色菜单矩阵，防止共享常量被误改。
+ *
+ * 这里校验的是业务原则，而不是「数量必须等于某个数字」：
+ * 后续为协管员新增专属页面时不需要修改本函数。
+ */
 function assertRoleMenuAssignments(pageCodes: Set<string>) {
-  let total = 0
+  const roleCodes = Object.keys(ROLE_MENU_CODES) as RoleCode[]
 
-  for (const roleCode of ROLE_CODES) {
+  if (roleCodes.length !== PRESET_ROLES.length) {
+    throw new Error('角色菜单矩阵必须与预置角色一一对应')
+  }
+
+  for (const roleCode of roleCodes) {
     const menuCodes = ROLE_MENU_CODES[roleCode]
-    const expected = EXPECTED_ROLE_MENU_COUNTS[roleCode]
 
-    if (menuCodes.length !== expected) {
-      throw new Error(
-        `角色 ${roleCode} 的默认菜单数量为 ${menuCodes.length}，预期 ${expected}，请同步更新 EXPECTED_ROLE_MENU_COUNTS`,
-      )
+    if (new Set(menuCodes).size !== menuCodes.length) {
+      throw new Error(`角色 ${roleCode} 的菜单配置存在重复项`)
     }
 
     for (const code of menuCodes) {
@@ -247,11 +187,32 @@ function assertRoleMenuAssignments(pageCodes: Set<string>) {
       }
     }
 
-    total += menuCodes.length
-  }
+    if (roleCode !== RoleCode.STUDENT) {
+      for (const code of STUDENT_ONLY_PAGES) {
+        if (menuCodes.includes(code)) {
+          throw new Error(`非学生角色 ${roleCode} 不能拥有学生个人业务页面 ${code}`)
+        }
+      }
+    }
 
-  if (total !== 56) {
-    throw new Error(`默认角色菜单关联总数为 ${total}，预期 56`)
+    if (roleCode !== RoleCode.TEACHER && menuCodes.includes('GUIDANCE_STUDENTS')) {
+      throw new Error(`只有教师角色可以拥有指导页面，冲突角色：${roleCode}`)
+    }
+
+    if (roleCode === RoleCode.CLASS_COORDINATOR) {
+      for (const code of COORDINATOR_FORBIDDEN_PAGES) {
+        if (menuCodes.includes(code)) {
+          throw new Error(`班级协管员不能拥有管理页面 ${code}`)
+        }
+      }
+    }
+
+    if (
+      roleCode === RoleCode.STUDENT &&
+      menuCodes.some((code) => code.includes('REVIEW') || code === 'USER_MANAGEMENT')
+    ) {
+      throw new Error('学生角色不能拥有审核或用户管理页面')
+    }
   }
 }
 
@@ -321,48 +282,16 @@ async function syncMenuTree(
 }
 
 // ==========================================
-// 7. 旧权限数据清理（可选）
+// 7. Seed 主流程
 // ==========================================
-
-/**
- * 清理暂时不使用的旧权限数据。
- *
- * 通过 CLEAR_LEGACY_PERMISSION_DATA=true 显式启用，
- * 避免后续正常执行 Seed 时误清空已重新建立的权限数据。
- * 只清空数据，不删除表结构。
- */
-async function clearLegacyPermissionData() {
-  const result = await prisma.$transaction(async (tx) => {
-    // 先删除关联记录，再删除权限主体，避免外键约束冲突
-    const rolePermissions = await tx.rolePermission.deleteMany()
-    const permissions = await tx.permission.deleteMany()
-
-    return {
-      rolePermissions: rolePermissions.count,
-      permissions: permissions.count,
-    }
-  })
-
-  console.log(
-    `旧权限数据清理完成：RolePermission ${result.rolePermissions} 条，Permission ${result.permissions} 条`,
-  )
-}
-
-// ==========================================
-// 8. Seed 主流程
-// ==========================================
+//
+// 明确不提供「清空权限数据」的开关：权限与角色关联只能增量维护，
+// 任何全量删除都会让管理员已有的授权静默丢失。
 
 async function main() {
   console.log('开始初始化基础数据...')
 
-  // 8.0 按需清理旧权限数据（默认不执行）
-  const shouldClearLegacyPermissionData = process.env['CLEAR_LEGACY_PERMISSION_DATA'] === 'true'
-
-  if (shouldClearLegacyPermissionData) {
-    await clearLegacyPermissionData()
-  }
-
-  // 8.1 校验共享菜单树与角色分配表
+  // 7.1 校验共享菜单树与角色分配表
   assertMenuTree(DEFAULT_MENU_TREE)
 
   const menuStats = collectMenuStats(DEFAULT_MENU_TREE)
@@ -382,22 +311,40 @@ async function main() {
   // 8.3 单个事务内完成角色、账号、菜单与角色菜单关联
   const summary = await prisma.$transaction(
     async (tx) => {
-      // 角色
-      const roleIdByCode = new Map<string, string>()
+      // 七个预置角色：职责平级，dataScope 只描述范围维度
+      const roleIdByCode = new Map<RoleCode, string>()
 
-      for (const role of roles) {
+      for (const role of PRESET_ROLES) {
         const record = await tx.role.upsert({
           where: { code: role.code },
-          create: role,
+          create: {
+            code: role.code,
+            name: role.name,
+            description: role.description,
+            dataScope: role.dataScope,
+            isSystem: true,
+            status: 'ACTIVE',
+          },
           update: {
             name: role.name,
             description: role.description,
-            isSystem: role.isSystem,
+            dataScope: role.dataScope,
+            isSystem: true,
+            status: 'ACTIVE',
           },
         })
 
         roleIdByCode.set(role.code, record.id)
       }
+
+      /**
+       * 旧 SUPER_ADMIN 角色模板：保留行与其历史 RoleMenu 关联用于审计，
+       * 只标记为停用，绝不删除，避免丢失「迁移前授权过什么」的证据。
+       */
+      const legacyRole = await tx.role.updateMany({
+        where: { code: LEGACY_SUPER_ADMIN_ROLE_CODE },
+        data: { status: 'DISABLED' },
+      })
 
       // 超级管理员账号（保留原密码）
       const admin = await tx.user.upsert({
@@ -411,16 +358,104 @@ async function main() {
         update: {},
       })
 
-      await tx.userRole.createMany({
-        data: [
-          {
-            userId: admin.id,
-            roleId: roleIdByCode.get('SUPER_ADMIN')!,
+      /**
+       * 学校根组织（单学校系统只允许一个 SCHOOL 节点）
+       *
+       * 已存在时保留管理员维护过的名称与编码，不用环境变量覆盖。
+       */
+      let school = await tx.organizationUnit.findFirst({
+        where: { type: 'SCHOOL' },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, code: true },
+      })
+
+      const schoolCreated = !school
+
+      if (!school) {
+        school = await tx.organizationUnit.create({
+          data: {
+            name: schoolName,
+            code: schoolCode,
+            type: 'SCHOOL',
+            sortOrder: 0,
             createdById: admin.id,
           },
-        ],
-        skipDuplicates: true,
+          select: { id: true, name: true, code: true },
+        })
+      }
+
+      /**
+       * 旧 SUPER_ADMIN → SCHOOL_ADMIN 迁移（已确认：该账号是学校工作人员日常账号）
+       *
+       * 安全规则：
+       * 1. 不删除 User、不删除 AuthSession、不删除旧的 UserRole 记录。
+       * 2. 旧分配只标记 revokedAt / revokedById，保留完整历史。
+       * 3. 新分配绑定学校根组织，不给予学生个人业务菜单。
+       * 4. 幂等：已存在有效 SCHOOL_ADMIN 分配时不会重复创建；
+       *    管理员日后主动撤销后，Seed 也不会重新激活。
+       */
+      const legacyRoleRecord = await tx.role.findUnique({
+        where: { code: LEGACY_SUPER_ADMIN_ROLE_CODE },
+        select: { id: true },
       })
+
+      let revokedLegacyAssignments = 0
+
+      if (legacyRoleRecord) {
+        const revoked = await tx.userRole.updateMany({
+          where: {
+            userId: admin.id,
+            roleId: legacyRoleRecord.id,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: new Date(),
+            revokedById: admin.id,
+          },
+        })
+
+        revokedLegacyAssignments = revoked.count
+      }
+
+      const schoolAdminRoleId = roleIdByCode.get(RoleCode.SCHOOL_ADMIN)!
+
+      const existingSchoolAdminAssignment = await tx.userRole.findFirst({
+        where: {
+          userId: admin.id,
+          roleId: schoolAdminRoleId,
+          scopeOrgUnitId: school.id,
+          revokedAt: null,
+        },
+        select: { id: true },
+      })
+
+      const adminAssignmentCount = await tx.userRole.count({
+        where: { userId: admin.id },
+      })
+
+      let schoolAdminAssigned = false
+
+      /**
+       * 仅在两种情况下创建学校管理员分配：
+       * - 本次刚撤销了旧超管（真实迁移场景）
+       * - 该账号历史上一无所有（全新环境首次初始化）
+       */
+      if (
+        !existingSchoolAdminAssignment &&
+        (revokedLegacyAssignments > 0 || adminAssignmentCount === 0)
+      ) {
+        await tx.userRole.create({
+          data: {
+            userId: admin.id,
+            roleId: schoolAdminRoleId,
+            scopeOrgUnitId: school.id,
+            assignedById: admin.id,
+            createdById: admin.id,
+          },
+        })
+
+        schoolAdminAssigned = true
+      }
 
       // 菜单树
       const existingMenus = await tx.menu.findMany({ select: { code: true } })
@@ -446,7 +481,7 @@ async function main() {
       // 补齐默认角色菜单关联，已有 PAGE 关联保留
       const roleMenuData: Prisma.RoleMenuCreateManyInput[] = []
 
-      for (const roleCode of ROLE_CODES) {
+      for (const roleCode of Object.keys(ROLE_MENU_CODES) as RoleCode[]) {
         const roleId = roleIdByCode.get(roleCode)
 
         if (!roleId) {
@@ -473,11 +508,82 @@ async function main() {
         skipDuplicates: true,
       })
 
-      const roleMenuTotal = await tx.roleMenu.count()
+      // 预置权限：按 code 作为稳定标识幂等 upsert
+      const permissionIdByCode = new Map<string, string>()
+
+      for (const permission of PRESET_PERMISSIONS) {
+        const record = await tx.permission.upsert({
+          where: { code: permission.code },
+          create: {
+            code: permission.code,
+            name: permission.name,
+            moduleName: permission.moduleName,
+            action: permission.action,
+            description: permission.description,
+            createdById: admin.id,
+          },
+          update: {
+            name: permission.name,
+            moduleName: permission.moduleName,
+            action: permission.action,
+            description: permission.description,
+          },
+        })
+
+        permissionIdByCode.set(permission.code, record.id)
+      }
+
+      /**
+       * 角色 → 权限：只增不删。
+       *
+       * Seed 不删除任何 RolePermission，避免覆盖管理员后续追加的授权；
+       * 需要收回权限时应通过管理操作显式执行。
+       */
+      const rolePermissionData: Prisma.RolePermissionCreateManyInput[] = []
+
+      for (const roleCode of Object.keys(ROLE_PERMISSION_CODES) as RoleCode[]) {
+        const roleId = roleIdByCode.get(roleCode)
+
+        if (!roleId) {
+          throw new Error(`角色 ${roleCode} 初始化失败，未取得角色 ID`)
+        }
+
+        for (const permissionCode of ROLE_PERMISSION_CODES[roleCode]) {
+          const permissionId = permissionIdByCode.get(permissionCode)
+
+          if (!permissionId) {
+            throw new Error(`角色 ${roleCode} 引用了未初始化的权限 ${permissionCode}`)
+          }
+
+          rolePermissionData.push({
+            roleId,
+            permissionId,
+            createdById: admin.id,
+          })
+        }
+      }
+
+      const createdRolePermissions = await tx.rolePermission.createMany({
+        data: rolePermissionData,
+        skipDuplicates: true,
+      })
+
+      const [roleMenuTotal, rolePermissionTotal, permissionTotal] = await Promise.all([
+        tx.roleMenu.count(),
+        tx.rolePermission.count(),
+        tx.permission.count(),
+      ])
 
       return {
         roleCount: roleIdByCode.size,
         adminEmail: admin.email,
+        schoolName: school.name,
+        schoolCode: school.code,
+        schoolCreated,
+        legacyRoleDisabled: legacyRole.count,
+        revokedLegacyAssignments,
+        schoolAdminAssigned,
+        schoolAdminScopeName: school.name,
         menuCreated: menuContext.createdCount,
         menuUpdated: menuContext.updatedCount,
         pageCount: menuContext.pageIds.length,
@@ -485,6 +591,9 @@ async function main() {
         removedDirectoryLinks: removedDirectoryLinks.count,
         createdRoleMenus: createdRoleMenus.count,
         roleMenuTotal,
+        permissionTotal,
+        createdRolePermissions: createdRolePermissions.count,
+        rolePermissionTotal,
       }
     },
     {
@@ -494,7 +603,29 @@ async function main() {
   )
 
   console.log(`角色初始化完成：${summary.roleCount} 个`)
-  console.log(`超级管理员已就绪：${summary.adminEmail}（密码未重置）`)
+  console.log(
+    `学校根组织已就绪：${summary.schoolName}（${summary.schoolCode}）${
+      summary.schoolCreated ? '，本次新建' : '，沿用已有记录'
+    }`,
+  )
+  console.log(`管理员账号已就绪：${summary.adminEmail}（密码未重置）`)
+
+  if (summary.legacyRoleDisabled > 0) {
+    console.log('旧 SUPER_ADMIN 角色模板已停用（保留历史 RoleMenu 关联用于审计）')
+  }
+
+  if (summary.revokedLegacyAssignments > 0) {
+    console.log(
+      `旧 SUPER_ADMIN 分配已撤销 ${summary.revokedLegacyAssignments} 条（记录保留，未删除）`,
+    )
+  }
+
+  console.log(
+    summary.schoolAdminAssigned
+      ? `已分配 SCHOOL_ADMIN（范围：${summary.schoolAdminScopeName}）`
+      : 'SCHOOL_ADMIN 分配已存在或曾被人为撤销，本次未改动',
+  )
+
   console.log(
     `菜单同步完成：共 ${summary.pageCount + summary.directoryCount} 个（PAGE ${summary.pageCount} / DIRECTORY ${summary.directoryCount}）`,
   )
@@ -504,11 +635,64 @@ async function main() {
     `角色菜单关联：本次新增 ${summary.createdRoleMenus} 条，当前总数 ${summary.roleMenuTotal} 条`,
   )
   console.log(
-    shouldClearLegacyPermissionData
-      ? '权限数据已按 CLEAR_LEGACY_PERMISSION_DATA 开关清理'
-      : '权限（permissions / role_permissions）未做任何变更',
+    `权限初始化：${summary.permissionTotal} 个权限；角色权限本次新增 ${summary.createdRolePermissions} 条，当前总数 ${summary.rolePermissionTotal} 条`,
+  )
+  const cacheInvalidated = await invalidateMenuCacheAfterSeed()
+  console.log(
+    cacheInvalidated
+      ? '菜单缓存版本已提升：所有用户的菜单缓存将在下次请求时重建'
+      : '警告：菜单缓存版本提升失败，旧缓存将在 TTL（600～660 秒）后自然过期',
   )
   console.log('Seed 初始化成功！')
+}
+
+/**
+ * Seed 结束后提升菜单缓存版本
+ *
+ * Seed 直接连接数据库、不经过 NestJS 的 DI 容器，因此这里用一次性 Redis 客户端
+ * 执行与 MenuCacheInvalidatorService 相同的 INCR。
+ *
+ * 失败只告警不中断：Seed 已经提交，旧缓存由 TTL（600～660 秒）兜底回收。
+ */
+async function invalidateMenuCacheAfterSeed(): Promise<boolean> {
+  const keyPrefix = process.env['MENU_CACHE_KEY_PREFIX']?.trim() || DEFAULT_MENU_CACHE_KEY_PREFIX
+
+  const client = createClient({
+    socket: {
+      host: process.env['REDIS_HOST']?.trim() || '127.0.0.1',
+      port: Number(process.env['REDIS_PORT'] ?? 6379),
+      connectTimeout: 3_000,
+      reconnectStrategy: () => false,
+    },
+    username: process.env['REDIS_USERNAME']?.trim() || undefined,
+    password: process.env['REDIS_PASSWORD'] || undefined,
+    database: Number(process.env['REDIS_DB'] ?? 0),
+    disableOfflineQueue: true,
+  })
+
+  client.on('error', () => undefined)
+
+  try {
+    await client.connect()
+
+    const generation = await client.incr(buildMenuCacheVersionKey(keyPrefix))
+
+    console.log(`菜单缓存 generation = ${generation}`)
+
+    await client.quit()
+
+    return true
+  } catch (error) {
+    console.warn('菜单缓存版本提升失败：', error instanceof Error ? error.message : String(error))
+
+    try {
+      client.destroy()
+    } catch {
+      // 连接已关闭时忽略
+    }
+
+    return false
+  }
 }
 
 // ==========================================

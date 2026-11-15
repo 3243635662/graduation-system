@@ -12,12 +12,20 @@ export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
 /**
  * 角色摘要
  *
- * 认证响应中只返回必要字段，避免暴露权限、菜单等敏感信息。
+ * 只承载「这个用户在哪个组织范围内拥有哪个角色」，
+ * 不返回权限编码、菜单或数据范围策略，避免客户端据此自行判断授权。
+ *
+ * scopeOrgUnitId 为 null 表示该角色不绑定组织节点
+ * （如 PLATFORM_SUPER_ADMIN / TEACHER / STUDENT）。
  */
 export interface RoleSummary {
   id: string
   code: string
   name: string
+  scopeOrgUnitId?: string | null
+  scopeOrgUnitName?: string
+  scopeOrgUnitType?: string
+  validUntil?: string | null
 }
 
 /**

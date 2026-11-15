@@ -36,9 +36,21 @@ interface UserProfileRecord {
   status: 'ACTIVE' | 'DISABLED' | 'LOCKED'
 }
 
-/** 用户 + 角色的查询结构 */
+/** 用户 + 角色分配的查询结构 */
 type UserWithRoles = UserProfileRecord & {
-  userRoles: Array<{ role: RoleSummary }>
+  userRoles: Array<{
+    scopeOrgUnitId: string | null
+    validFrom: Date
+    validUntil: Date | null
+    revokedAt: Date | null
+    role: {
+      id: string
+      code: string
+      name: string
+      status: 'ACTIVE' | 'DISABLED'
+    }
+    scopeOrgUnit: { name: string; type: string } | null
+  }>
 }
 
 /** 宽限期内缓存的轮换结果，用于消除多标签页并发刷新的误判 */
@@ -71,6 +83,40 @@ function verifyPassword(passwordHash: string, password: string): Promise<boolean
   return argon2.verify(passwordHash, password)
 }
 
+/**
+ * 只返回当前有效的角色分配
+ *
+ * 撤销、未生效、已过期与角色停用的记录一律不返回。
+ * 同一角色在不同组织范围的多条分配会分别保留（例如两个班级的协管员）。
+ */
+function toEffectiveRoles(user: UserWithRoles, now = new Date()): RoleSummary[] {
+  const roles = new Map<string, RoleSummary>()
+
+  for (const item of user.userRoles) {
+    if (item.revokedAt) continue
+    if (item.validFrom.getTime() > now.getTime()) continue
+    if (item.validUntil && item.validUntil.getTime() <= now.getTime()) continue
+    if (item.role.status !== 'ACTIVE') continue
+
+    const key = `${item.role.code}:${item.scopeOrgUnitId ?? 'none'}`
+
+    if (roles.has(key)) continue
+
+    roles.set(key, {
+      id: item.role.id,
+      code: item.role.code,
+      name: item.role.name,
+      scopeOrgUnitId: item.scopeOrgUnitId,
+      ...(item.scopeOrgUnit
+        ? { scopeOrgUnitName: item.scopeOrgUnit.name, scopeOrgUnitType: item.scopeOrgUnit.type }
+        : {}),
+      validUntil: item.validUntil ? item.validUntil.toISOString() : null,
+    })
+  }
+
+  return [...roles.values()]
+}
+
 function toAuthUser(user: UserProfileRecord, roles: RoleSummary[]): AuthUser {
   return {
     id: user.id,
@@ -88,11 +134,22 @@ const userProfileSelect = {
   status: true,
   userRoles: {
     select: {
+      scopeOrgUnitId: true,
+      validFrom: true,
+      validUntil: true,
+      revokedAt: true,
       role: {
         select: {
           id: true,
           code: true,
           name: true,
+          status: true,
+        },
+      },
+      scopeOrgUnit: {
+        select: {
+          name: true,
+          type: true,
         },
       },
     },
@@ -269,10 +326,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: refresh.token,
-      user: toAuthUser(
-        user,
-        user.userRoles.map((item) => item.role),
-      ),
+      user: toAuthUser(user, toEffectiveRoles(user)),
     }
   }
 
@@ -470,10 +524,7 @@ export class AuthService {
       throw this.tokenInvalid('用户不存在或已被删除')
     }
 
-    return toAuthUser(
-      user,
-      user.userRoles.map((item) => item.role),
-    )
+    return toAuthUser(user, toEffectiveRoles(user))
   }
 
   private async revokeSession(sessionId: string): Promise<void> {
@@ -494,10 +545,7 @@ export class AuthService {
     return {
       accessToken: this.tokenService.signAccessToken(userId, sessionId),
       refreshToken,
-      user: toAuthUser(
-        user,
-        user.userRoles.map((item) => item.role),
-      ),
+      user: toAuthUser(user, toEffectiveRoles(user)),
     }
   }
 

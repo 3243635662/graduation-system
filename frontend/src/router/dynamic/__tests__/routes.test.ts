@@ -1,12 +1,39 @@
 import type { MenuTreeNode } from '@graduation/shared'
 import { DEFAULT_MENU_TREE } from '@graduation/shared'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { RouteRecordRaw, Router } from 'vue-router'
 
 import { hasViewComponent } from '../component-registry'
-import { flattenPages, toNavGroups } from '../nav'
-import { buildDynamicRoutes } from '../routes'
+import { dedupeMenuTree, flattenPages, toNavGroups } from '../nav'
+import { buildDynamicRoutes, rebuildDynamicRoutes, resetDynamicRoutes } from '../routes'
 
 const pageNodes = flattenPages(DEFAULT_MENU_TREE)
+
+/** 最小可用的 Router 替身：只实现动态路由注册需要的方法 */
+function createFakeRouter(staticNames: string[] = []) {
+  const registered = new Map<string, RouteRecordRaw>()
+
+  for (const name of staticNames) {
+    registered.set(name, {
+      path: `/${name}`,
+      name,
+      component: { template: '<div />' },
+    } as RouteRecordRaw)
+  }
+
+  const router = {
+    hasRoute: (name: string | symbol) => registered.has(String(name)),
+    addRoute: (route: RouteRecordRaw) => {
+      registered.set(String(route.name), route)
+
+      return () => {
+        registered.delete(String(route.name))
+      }
+    },
+  }
+
+  return { router: router as unknown as Router, registered }
+}
 
 describe('default menu tree', () => {
   it('V1 菜单包含 19 个页面节点', () => {
@@ -39,7 +66,7 @@ describe('default menu tree', () => {
 
 describe('dynamic routes', () => {
   it('按页面节点生成路由，路由 name 唯一', () => {
-    const routes = buildDynamicRoutes()
+    const routes = buildDynamicRoutes(DEFAULT_MENU_TREE)
     const names = routes.map((route) => route.name)
 
     expect(routes).toHaveLength(pageNodes.length)
@@ -47,11 +74,119 @@ describe('dynamic routes', () => {
   })
 
   it('路由 path 与菜单 path 一致', () => {
-    const routes = buildDynamicRoutes()
+    const routes = buildDynamicRoutes(DEFAULT_MENU_TREE)
     const routePaths = routes.map((route) => route.path).sort()
     const menuPaths = pageNodes.map((page) => page.path!).sort()
 
     expect(routePaths).toEqual(menuPaths)
+  })
+})
+
+describe('dynamic route safety', () => {
+  const base: MenuTreeNode = {
+    code: 'SAFE_PAGE',
+    title: '安全页面',
+    path: '/safe',
+    type: 'PAGE',
+    componentKey: 'dashboard/index',
+    sortOrder: 1,
+  }
+
+  it('componentKey 不在本地注册表时跳过该页面', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    const routes = buildDynamicRoutes([{ ...base, componentKey: 'not/exist' }])
+
+    expect(routes).toHaveLength(0)
+    expect(errorSpy).toHaveBeenCalled()
+    errorSpy.mockRestore()
+  })
+
+  it('PAGE 缺少 componentKey 或 path 时跳过', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    expect(buildDynamicRoutes([{ ...base, componentKey: undefined }])).toHaveLength(0)
+    expect(buildDynamicRoutes([{ ...base, path: null }])).toHaveLength(0)
+
+    errorSpy.mockRestore()
+  })
+
+  it('重复菜单只注册一条路由', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    const routes = buildDynamicRoutes([base, { ...base }])
+
+    expect(routes).toHaveLength(1)
+    warnSpy.mockRestore()
+  })
+
+  it('DIRECTORY 不生成路由', () => {
+    const directory: MenuTreeNode = {
+      code: 'DIR_ONLY',
+      title: '纯目录',
+      path: null,
+      type: 'DIRECTORY',
+      sortOrder: 1,
+      children: [base],
+    }
+
+    const routes = buildDynamicRoutes([directory])
+
+    expect(routes.map((route) => route.name)).toEqual(['SAFE_PAGE'])
+  })
+})
+
+describe('dynamic route lifecycle', () => {
+  it('重建时移除旧用户的动态路由，只保留新菜单', () => {
+    const { router, registered } = createFakeRouter(['auth-sign-in'])
+
+    rebuildDynamicRoutes(router, DEFAULT_MENU_TREE)
+    expect(registered.size).toBe(20)
+
+    const studentTree: MenuTreeNode[] = [
+      {
+        code: 'DASHBOARD',
+        title: '工作台',
+        path: '/dashboard',
+        type: 'PAGE',
+        componentKey: 'dashboard/index',
+        sortOrder: 1,
+      },
+    ]
+
+    rebuildDynamicRoutes(router, studentTree)
+
+    expect([...registered.keys()].sort()).toEqual(['DASHBOARD', 'auth-sign-in'])
+  })
+
+  it('清理动态路由不会删除静态路由', () => {
+    const { router, registered } = createFakeRouter(['404'])
+
+    rebuildDynamicRoutes(router, DEFAULT_MENU_TREE)
+    resetDynamicRoutes()
+
+    expect([...registered.keys()]).toEqual(['404'])
+  })
+})
+
+describe('menu tree dedupe', () => {
+  it('按 id 去重并保留树结构', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    const page: MenuTreeNode = {
+      id: 'menu-1',
+      code: 'DASHBOARD',
+      title: '工作台',
+      path: '/dashboard',
+      type: 'PAGE',
+      componentKey: 'dashboard/index',
+      sortOrder: 1,
+    }
+
+    const tree = dedupeMenuTree([page, { ...page }])
+
+    expect(tree).toHaveLength(1)
+    errorSpy.mockRestore()
   })
 })
 
@@ -77,6 +212,22 @@ describe('sidebar navigation', () => {
         expect(item.url, `${item.title} 缺少 url`).toBeTruthy()
       }
     }
+  })
+
+  it('visible=false 的页面不出现在侧边栏', () => {
+    const groups = toNavGroups([
+      {
+        code: 'HIDDEN',
+        title: '隐藏页面',
+        path: '/hidden',
+        type: 'PAGE',
+        componentKey: 'dashboard/index',
+        sortOrder: 1,
+        visible: false,
+      },
+    ])
+
+    expect(groups).toEqual([])
   })
 })
 

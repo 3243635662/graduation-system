@@ -9,7 +9,17 @@ import type { SchemaObject } from '@nestjs/swagger'
  */
 export const roleSchema: SchemaObject = {
   type: 'object',
-  required: ['id', 'code', 'name', 'description', 'isSystem', 'status', 'createdAt', 'updatedAt'],
+  required: [
+    'id',
+    'code',
+    'name',
+    'description',
+    'dataScope',
+    'isSystem',
+    'status',
+    'createdAt',
+    'updatedAt',
+  ],
   properties: {
     id: {
       type: 'string',
@@ -17,15 +27,21 @@ export const roleSchema: SchemaObject = {
     },
     code: {
       type: 'string',
-      example: 'SUPER_ADMIN',
+      example: 'SCHOOL_ADMIN',
     },
     name: {
       type: 'string',
-      example: '超级管理员',
+      example: '学校管理员',
     },
     description: {
       type: 'string',
       nullable: true,
+    },
+    dataScope: {
+      type: 'string',
+      enum: ['GLOBAL', 'SCHOOL', 'DEPARTMENT', 'MAJOR', 'CLASS', 'ASSIGNED', 'SELF'],
+      example: 'SCHOOL',
+      description: '角色默认数据范围维度，不代表自动拥有该范围内所有资源的权限',
     },
     isSystem: {
       type: 'boolean',

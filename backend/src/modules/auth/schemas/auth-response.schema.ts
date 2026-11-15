@@ -22,6 +22,28 @@ export const roleSummarySchema: SchemaObject = {
       type: 'string',
       example: '学生',
     },
+    scopeOrgUnitId: {
+      type: 'string',
+      format: 'uuid',
+      nullable: true,
+      description: '角色生效的组织节点；null 表示该角色不绑定组织范围',
+    },
+    scopeOrgUnitName: {
+      type: 'string',
+      nullable: true,
+      example: '软件工程一班',
+    },
+    scopeOrgUnitType: {
+      type: 'string',
+      nullable: true,
+      enum: ['SCHOOL', 'DEPARTMENT', 'MAJOR', 'CLASS'],
+    },
+    validUntil: {
+      type: 'string',
+      format: 'date-time',
+      nullable: true,
+      description: '角色分配过期时间；null 表示长期有效',
+    },
   },
 }
 

@@ -50,6 +50,19 @@ function createPrismaMock(): PrismaMock {
 
 const studentRole = { id: 'role-student', code: 'STUDENT', name: '学生' }
 
+/** 认证响应中的角色摘要：附带组织范围与有效期，便于前端展示任职范围 */
+const studentRoleSummary = { ...studentRole, scopeOrgUnitId: null, validUntil: null }
+
+/** 学生角色分配：用于 userProfileSelect 的有效分配过滤 */
+const studentAssignment = {
+  scopeOrgUnitId: null,
+  validFrom: new Date('2026-01-01T00:00:00.000Z'),
+  validUntil: null,
+  revokedAt: null,
+  role: { ...studentRole, status: 'ACTIVE' as const },
+  scopeOrgUnit: null,
+}
+
 const baseUser = {
   id: 'user-1',
   email: 'student@example.com',
@@ -139,7 +152,7 @@ describe('AuthService', () => {
       prisma.user.findUnique.mockResolvedValue({
         ...baseUser,
         passwordHash,
-        userRoles: [{ role: studentRole }],
+        userRoles: [studentAssignment],
       })
       prisma.authSession.create.mockResolvedValue({ id: 'session-1' })
       prisma.user.update.mockResolvedValue({})
@@ -147,7 +160,7 @@ describe('AuthService', () => {
       const result = await service.login({ email: baseUser.email, password: 'password123' }, {})
 
       expect(result.user.id).toBe('user-1')
-      expect(result.user.roles).toEqual([studentRole])
+      expect(result.user.roles).toEqual([studentRoleSummary])
       expect(tokenService.verifyAccessToken(result.accessToken).sid).toBe('session-1')
     })
 
@@ -195,7 +208,7 @@ describe('AuthService', () => {
       userId: 'user-1',
       revokedAt: null,
       expiresAt: new Date(Date.now() + 60_000),
-      user: { ...baseUser, userRoles: [{ role: studentRole }] },
+      user: { ...baseUser, userRoles: [studentAssignment] },
     }
 
     it('有效 Refresh Token 会轮换并签发新的 Access Token', async () => {
@@ -350,12 +363,12 @@ describe('AuthService', () => {
     it('返回当前用户与角色', async () => {
       prisma.user.findUnique.mockResolvedValue({
         ...baseUser,
-        userRoles: [{ role: studentRole }],
+        userRoles: [studentAssignment],
       })
 
       const result = await service.getMe({ userId: 'user-1', sessionId: 'session-1' })
 
-      expect(result).toEqual({ ...baseUser, roles: [studentRole] })
+      expect(result).toEqual({ ...baseUser, roles: [studentRoleSummary] })
     })
 
     it('用户不存在时抛出 40101', async () => {

@@ -4,6 +4,8 @@ import type { MenuType } from '../enums/menu-type.js'
  * 菜单树节点，前后端共用
  *
  * 字段与后端 Prisma Menu 模型保持一致：
+ * id           -> 菜单主键（去重、调试与缓存校验用，可选以兼容静态默认菜单树）
+ * parentId     -> 父节点主键（根节点为 null，可选）
  * code         -> 路由 name，同时作为菜单唯一标识
  * title        -> 菜单标题
  * path         -> 路由地址（DIRECTORY 节点为空）
@@ -13,6 +15,8 @@ import type { MenuType } from '../enums/menu-type.js'
  * sortOrder    -> 同级排序
  */
 export interface MenuTreeNode {
+  id?: string
+  parentId?: string | null
   code: string
   title: string
   path: string | null

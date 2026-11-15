@@ -25,7 +25,11 @@ export interface FakeSession {
   userAgent: string | null
 }
 
-export const STUDENT_ROLE = { id: 'role-student', code: 'STUDENT', name: '学生' }
+export const STUDENT_ROLE = {
+  id: 'role-student',
+  code: 'STUDENT',
+  name: '学生',
+}
 
 export function createInMemoryPrisma() {
   const users: FakeUser[] = []
@@ -44,7 +48,14 @@ export function createInMemoryPrisma() {
       ...user,
       userRoles: roles
         .filter((role): role is typeof STUDENT_ROLE => Boolean(role))
-        .map((role) => ({ role })),
+        .map((role) => ({
+          scopeOrgUnitId: null,
+          validFrom: new Date(0),
+          validUntil: null,
+          revokedAt: null,
+          role: { ...role, status: 'ACTIVE' as const },
+          scopeOrgUnit: null,
+        })),
     }
   }
 

@@ -191,14 +191,17 @@ export class EmailCodeService {
     const emailHash = hashIdentifier(this.config.pepper, 'email', email)
     const digest = hashRegisterCode(this.config.pepper, email, options.code)
 
-    const result = await this.runRedis((client) =>
+    const reply = await this.runRedis((client) =>
       client.eval(VERIFY_AND_CONSUME_SCRIPT, {
         keys: [this.keys.code(emailHash)],
         arguments: [digest, String(this.config.maxAttempts)],
       }),
     )
 
-    switch (String(result)) {
+    // 脚本固定返回状态字符串；出现其它返回类型说明脚本与调用侧已不一致，按「验证码不正确」处理
+    const status = typeof reply === 'string' ? reply : ''
+
+    switch (status) {
       case 'SUCCESS':
         return
 

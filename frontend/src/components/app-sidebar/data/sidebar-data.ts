@@ -1,4 +1,3 @@
-import { navData } from '@/constants/sidebar-data'
 import { AudioWaveformIcon, CommandIcon, GalleryVerticalEndIcon } from '@lucide/vue'
 
 import type { SidebarData, Team, User } from '../types'
@@ -27,8 +26,12 @@ const teams: Team[] = [
   },
 ]
 
+/**
+ * 侧边栏静态部分
+ *
+ * navMain 已移除：主菜单改由 useMenuStore().navGroups 提供（后端真实菜单）。
+ */
 export const sidebarData: SidebarData = {
   user,
   teams,
-  navMain: navData,
 }

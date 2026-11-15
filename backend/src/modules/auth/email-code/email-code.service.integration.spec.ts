@@ -421,7 +421,7 @@ describe('EmailCodeService（真实 Redis 集成）', () => {
       wrongPasswordClient.on('error', () => undefined)
 
       await expect(wrongPasswordClient.connect()).rejects.toBeTruthy()
-      await wrongPasswordClient.destroy()
+      wrongPasswordClient.destroy()
 
       const brokenService = new EmailCodeService(
         new RedisService(wrongPasswordClient as unknown as RedisClient),
@@ -452,7 +452,7 @@ describe('EmailCodeService（真实 Redis 集成）', () => {
       unreachableClient.on('error', () => undefined)
 
       await expect(unreachableClient.connect()).rejects.toBeTruthy()
-      await unreachableClient.destroy()
+      unreachableClient.destroy()
     })
 
     it('发送验证码返回 503，不会降级到内存实现', async () => {

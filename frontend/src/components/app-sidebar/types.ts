@@ -46,8 +46,12 @@ export interface Team {
   plan: string
 }
 
+/**
+ * 侧边栏静态数据
+ *
+ * 主菜单不再放在这里：它由 useMenuStore().navGroups 提供（后端真实菜单）。
+ */
 export interface SidebarData {
   user: User
   teams: Team[]
-  navMain: NavGroup[]
 }

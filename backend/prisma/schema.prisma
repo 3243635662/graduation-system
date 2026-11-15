@@ -32,6 +32,56 @@ enum MenuStatus {
   DISABLED
 }
 
+/// 组织层级：学校 -> 院系 -> 专业 -> 班级
+enum OrganizationType {
+  SCHOOL
+  DEPARTMENT
+  MAJOR
+  CLASS
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// 角色默认数据范围策略，仅表示范围维度，不代表自动拥有资源权限
+enum DataScope {
+  GLOBAL
+  SCHOOL
+  DEPARTMENT
+  MAJOR
+  CLASS
+  ASSIGNED
+  SELF
+}
+
+/// 学籍状态
+enum EnrollmentStatus {
+  ACTIVE
+  SUSPENDED
+  GRADUATED
+  WITHDRAWN
+}
+
+/// 教职工任职状态
+enum EmploymentStatus {
+  ACTIVE
+  ON_LEAVE
+  LEFT
+}
+
+/// 教师班级职责类型（v1 仅班主任）
+enum ClassDutyType {
+  HEAD_TEACHER
+}
+
+/// 角色分配终止原因：用于区分人工撤销与资格失效导致的自动终止
+enum UserRoleRevocationReason {
+  MANUAL
+  QUALIFICATION_LOST
+}
+
 // ========================================
 // 1. 用户表
 // ========================================
@@ -60,12 +110,34 @@ model User {
   userRoles UserRole[]    @relation("UserRoleUser")
   sessions  AuthSession[]
 
-  createdRoles           Role[]           @relation("RoleCreatedBy")
-  createdPermissions     Permission[]     @relation("PermissionCreatedBy")
-  createdMenus           Menu[]           @relation("MenuCreatedBy")
-  createdUserRoles       UserRole[]       @relation("UserRoleCreatedBy")
-  createdRolePermissions RolePermission[] @relation("RolePermissionCreatedBy")
-  createdRoleMenus       RoleMenu[]       @relation("RoleMenuCreatedBy")
+  createdRoles             Role[]             @relation("RoleCreatedBy")
+  createdPermissions       Permission[]       @relation("PermissionCreatedBy")
+  createdMenus             Menu[]             @relation("MenuCreatedBy")
+  createdUserRoles         UserRole[]         @relation("UserRoleCreatedBy")
+  createdRolePermissions   RolePermission[]   @relation("RolePermissionCreatedBy")
+  createdRoleMenus         RoleMenu[]         @relation("RoleMenuCreatedBy")
+  createdOrganizationUnits OrganizationUnit[] @relation("OrganizationUnitCreatedBy")
+  assignedUserRoles        UserRole[]         @relation("UserRoleAssignedBy")
+  revokedUserRoles         UserRole[]         @relation("UserRoleRevokedBy")
+
+  // 人员档案与班级任职
+  studentProfile          StudentProfile?            @relation("StudentProfileUser")
+  teacherProfile          TeacherProfile?            @relation("TeacherProfileUser")
+  counselorAssignments    CounselorClassAssignment[] @relation("CounselorAssignmentUser")
+  createdStudentProfiles  StudentProfile[]           @relation("StudentProfileCreatedBy")
+  createdTeacherProfiles  TeacherProfile[]           @relation("TeacherProfileCreatedBy")
+  updatedStudentProfiles  StudentProfile[]           @relation("StudentProfileUpdatedBy")
+  updatedTeacherProfiles  TeacherProfile[]           @relation("TeacherProfileUpdatedBy")
+  assignedTeacherDuties   TeacherClassDuty[]         @relation("TeacherClassDutyAssignedBy")
+  revokedTeacherDuties    TeacherClassDuty[]         @relation("TeacherClassDutyRevokedBy")
+  assignedCounselorDuties CounselorClassAssignment[] @relation("CounselorAssignmentAssignedBy")
+  revokedCounselorDuties  CounselorClassAssignment[] @relation("CounselorAssignmentRevokedBy")
+
+  coordinatorOverrides        CoordinatorQualificationOverride[] @relation("CoordinatorOverrideUser")
+  grantedCoordinatorOverrides CoordinatorQualificationOverride[] @relation("CoordinatorOverrideGrantedBy")
+  revokedCoordinatorOverrides CoordinatorQualificationOverride[] @relation("CoordinatorOverrideRevokedBy")
+
+  studentTransfers StudentClassTransfer[] @relation("StudentTransferBy")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -80,6 +152,7 @@ model Role {
   code        String     @unique @db.VarChar(64)
   name        String     @db.VarChar(100)
   description String?    @db.VarChar(255)
+  dataScope   DataScope  @default(SELF) @map("data_scope")
   isSystem    Boolean    @default(false) @map("is_system")
   status      RoleStatus @default(ACTIVE)
 
@@ -152,27 +225,83 @@ model Menu {
 }
 
 // ========================================
-// 5. 用户角色关联表
+// 5. 组织单元表（邻接表：学校 / 院系 / 专业 / 班级）
+// ========================================
+
+model OrganizationUnit {
+  id        String             @id @default(uuid()) @db.Char(36)
+  name      String             @db.VarChar(100)
+  code      String             @unique @db.VarChar(64)
+  type      OrganizationType
+  status    OrganizationStatus @default(ACTIVE)
+  sortOrder Int                @default(0) @map("sort_order")
+
+  parentId String?            @map("parent_id") @db.Char(36)
+  parent   OrganizationUnit?  @relation("OrganizationTree", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children OrganizationUnit[] @relation("OrganizationTree")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+
+  createdBy User? @relation("OrganizationUnitCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  userRoleAssignments UserRole[] @relation("UserRoleScopeOrgUnit")
+
+  // 人员档案与班级任职
+  studentProfiles      StudentProfile[]                   @relation("StudentProfileClass")
+  teacherProfiles      TeacherProfile[]                   @relation("TeacherProfileDepartment")
+  teacherClassDuties   TeacherClassDuty[]                 @relation("TeacherClassDutyClass")
+  counselorAssignments CounselorClassAssignment[]         @relation("CounselorAssignmentClass")
+  coordinatorOverrides CoordinatorQualificationOverride[] @relation("CoordinatorOverrideClass")
+  studentTransfersFrom StudentClassTransfer[]             @relation("StudentTransferFromClass")
+  studentTransfersTo   StudentClassTransfer[]             @relation("StudentTransferToClass")
+
+  @@index([parentId, sortOrder])
+  @@index([type, status])
+  @@map("organization_units")
+}
+
+// ========================================
+// 6. 用户角色分配表（角色模板 + 组织范围 + 有效期）
 // ========================================
 
 model UserRole {
-  userId String @map("user_id") @db.Char(36)
-  roleId String @map("role_id") @db.Char(36)
+  id String @id @default(uuid()) @db.Char(36)
+
+  userId         String  @map("user_id") @db.Char(36)
+  roleId         String  @map("role_id") @db.Char(36)
+  scopeOrgUnitId String? @map("scope_org_unit_id") @db.Char(36)
+
+  assignedById String? @map("assigned_by") @db.Char(36)
+
+  validFrom  DateTime  @default(now()) @map("valid_from") @db.DateTime(3)
+  validUntil DateTime? @map("valid_until") @db.DateTime(3)
+
+  revokedAt        DateTime?                 @map("revoked_at") @db.DateTime(3)
+  revokedById      String?                   @map("revoked_by") @db.Char(36)
+  revocationReason UserRoleRevocationReason? @map("revocation_reason")
 
   createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
   createdById String?  @map("created_by") @db.Char(36)
 
-  user      User  @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
-  role      Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  createdBy User? @relation("UserRoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  user         User              @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  role         Role              @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  scopeOrgUnit OrganizationUnit? @relation("UserRoleScopeOrgUnit", fields: [scopeOrgUnitId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedBy   User?             @relation("UserRoleAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  revokedBy    User?             @relation("UserRoleRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+  createdBy    User?             @relation("UserRoleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  @@id([userId, roleId])
+  @@index([userId, revokedAt])
   @@index([roleId])
+  @@index([scopeOrgUnitId])
+  @@index([userId, roleId, scopeOrgUnitId])
   @@map("user_roles")
 }
 
 // ========================================
-// 6. 角色权限关联表
+// 7. 角色权限关联表
 // ========================================
 
 model RolePermission {
@@ -192,7 +321,7 @@ model RolePermission {
 }
 
 // ========================================
-// 7. 角色菜单关联表
+// 8. 角色菜单关联表
 // ========================================
 
 model RoleMenu {
@@ -212,7 +341,7 @@ model RoleMenu {
 }
 
 // ========================================
-// 8. 登录会话表
+// 9. 登录会话表
 // ========================================
 
 model AuthSession {
@@ -235,4 +364,199 @@ model AuthSession {
 
   @@index([userId, revokedAt])
   @@map("auth_sessions")
+}
+
+// ========================================
+// 10. 学生档案
+// ========================================
+//
+// - userId 可空：支持「先导入名册、后注册账号」，注册认证后再绑定
+// - 只保存 classId，专业/院系/学校通过 OrganizationUnit 向上推导
+// - 不因组织节点删除而级联删除
+
+model StudentProfile {
+  id        String  @id @default(uuid()) @db.Char(36)
+  userId    String? @unique @map("user_id") @db.Char(36)
+  studentNo String  @unique @map("student_no") @db.VarChar(32)
+  name      String  @db.VarChar(80)
+
+  classId          String           @map("class_id") @db.Char(36)
+  enrollmentStatus EnrollmentStatus @default(ACTIVE) @map("enrollment_status")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+  updatedById String?  @map("updated_by") @db.Char(36)
+
+  user      User?                  @relation("StudentProfileUser", fields: [userId], references: [id], onDelete: Restrict)
+  class     OrganizationUnit       @relation("StudentProfileClass", fields: [classId], references: [id], onDelete: Restrict)
+  createdBy User?                  @relation("StudentProfileCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User?                  @relation("StudentProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  transfers StudentClassTransfer[]
+
+  @@index([classId, enrollmentStatus])
+  @@index([enrollmentStatus])
+  @@index([updatedById])
+  @@map("student_profiles")
+}
+
+// ========================================
+// 11. 教师档案
+// ========================================
+//
+// v1 只保留一个主要所属院系；跨院系工作通过指导/任职关系表达，
+// 不因此自动扩大教师的数据权限。
+
+model TeacherProfile {
+  id        String @id @default(uuid()) @db.Char(36)
+  userId    String @unique @map("user_id") @db.Char(36)
+  teacherNo String @unique @map("teacher_no") @db.VarChar(32)
+
+  departmentId     String           @map("department_id") @db.Char(36)
+  employmentStatus EmploymentStatus @default(ACTIVE) @map("employment_status")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdById String?  @map("created_by") @db.Char(36)
+  updatedById String?  @map("updated_by") @db.Char(36)
+
+  user        User               @relation("TeacherProfileUser", fields: [userId], references: [id], onDelete: Restrict)
+  department  OrganizationUnit   @relation("TeacherProfileDepartment", fields: [departmentId], references: [id], onDelete: Restrict)
+  createdBy   User?              @relation("TeacherProfileCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?              @relation("TeacherProfileUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  classDuties TeacherClassDuty[]
+
+  @@index([departmentId, employmentStatus])
+  @@index([updatedById])
+  @@map("teacher_profiles")
+}
+
+// ========================================
+// 12. 教师班级职责（班主任）
+// ========================================
+//
+// 不设永久唯一约束：同一教师离任后可再次担任同一班级班主任。
+// 有效时间重叠由业务事务检查。
+
+model TeacherClassDuty {
+  id        String        @id @default(uuid()) @db.Char(36)
+  teacherId String        @map("teacher_id") @db.Char(36)
+  classId   String        @map("class_id") @db.Char(36)
+  dutyType  ClassDutyType @default(HEAD_TEACHER) @map("duty_type")
+
+  validFrom  DateTime  @default(now()) @map("valid_from") @db.DateTime(3)
+  validUntil DateTime? @map("valid_until") @db.DateTime(3)
+
+  revokedAt    DateTime? @map("revoked_at") @db.DateTime(3)
+  revokedById  String?   @map("revoked_by") @db.Char(36)
+  assignedById String?   @map("assigned_by") @db.Char(36)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  teacher    TeacherProfile   @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  class      OrganizationUnit @relation("TeacherClassDutyClass", fields: [classId], references: [id], onDelete: Restrict)
+  assignedBy User?            @relation("TeacherClassDutyAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  revokedBy  User?            @relation("TeacherClassDutyRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([classId, dutyType, validUntil])
+  @@index([teacherId, validUntil])
+  @@index([revokedAt])
+  @@map("teacher_class_duties")
+}
+
+// ========================================
+// 13. 辅导员班级分配
+// ========================================
+//
+// 辅导员直接关联 User，不要求 TEACHER 身份；
+// 支持一人多班、一班多人，保留历史与提前结束的操作人。
+
+model CounselorClassAssignment {
+  id      String @id @default(uuid()) @db.Char(36)
+  userId  String @map("user_id") @db.Char(36)
+  classId String @map("class_id") @db.Char(36)
+
+  validFrom  DateTime  @default(now()) @map("valid_from") @db.DateTime(3)
+  validUntil DateTime? @map("valid_until") @db.DateTime(3)
+
+  revokedAt    DateTime? @map("revoked_at") @db.DateTime(3)
+  revokedById  String?   @map("revoked_by") @db.Char(36)
+  assignedById String?   @map("assigned_by") @db.Char(36)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  user       User             @relation("CounselorAssignmentUser", fields: [userId], references: [id], onDelete: Restrict)
+  class      OrganizationUnit @relation("CounselorAssignmentClass", fields: [classId], references: [id], onDelete: Restrict)
+  assignedBy User?            @relation("CounselorAssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  revokedBy  User?            @relation("CounselorAssignmentRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([classId, validUntil])
+  @@index([userId, validUntil])
+  @@index([revokedAt])
+  @@map("counselor_class_assignments")
+}
+
+// ========================================
+// 14. 协管员资格特殊覆盖授权
+// ========================================
+//
+// 仅 SCHOOL_ADMIN 可创建；必须填写 reason；
+// 与对应 CLASS_COORDINATOR UserRole 在同一事务中创建。
+
+model CoordinatorQualificationOverride {
+  id      String @id @default(uuid()) @db.Char(36)
+  userId  String @map("user_id") @db.Char(36)
+  classId String @map("class_id") @db.Char(36)
+  reason  String @db.VarChar(255)
+
+  grantedById String @map("granted_by") @db.Char(36)
+
+  validFrom  DateTime  @default(now()) @map("valid_from") @db.DateTime(3)
+  validUntil DateTime? @map("valid_until") @db.DateTime(3)
+
+  revokedAt   DateTime? @map("revoked_at") @db.DateTime(3)
+  revokedById String?   @map("revoked_by") @db.Char(36)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  user      User             @relation("CoordinatorOverrideUser", fields: [userId], references: [id], onDelete: Restrict)
+  class     OrganizationUnit @relation("CoordinatorOverrideClass", fields: [classId], references: [id], onDelete: Restrict)
+  grantedBy User             @relation("CoordinatorOverrideGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict)
+  revokedBy User?            @relation("CoordinatorOverrideRevokedBy", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([userId, classId, validUntil])
+  @@index([classId, validUntil])
+  @@index([revokedAt])
+  @@map("coordinator_qualification_overrides")
+}
+
+// ========================================
+// 15. 学生转班历史
+// ========================================
+//
+// 只在转班事务内写入，保留原班级、目标班级、原因与操作人；
+// 历史数据不回填，不使用 updatedById 代替完整转班记录。
+
+model StudentClassTransfer {
+  id               String  @id @default(uuid()) @db.Char(36)
+  studentProfileId String  @map("student_profile_id") @db.Char(36)
+  fromClassId      String  @map("from_class_id") @db.Char(36)
+  toClassId        String  @map("to_class_id") @db.Char(36)
+  reason           String? @db.VarChar(255)
+
+  transferredById String   @map("transferred_by") @db.Char(36)
+  transferredAt   DateTime @default(now()) @map("transferred_at") @db.DateTime(3)
+
+  student       StudentProfile   @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  fromClass     OrganizationUnit @relation("StudentTransferFromClass", fields: [fromClassId], references: [id], onDelete: Restrict)
+  toClass       OrganizationUnit @relation("StudentTransferToClass", fields: [toClassId], references: [id], onDelete: Restrict)
+  transferredBy User             @relation("StudentTransferBy", fields: [transferredById], references: [id], onDelete: Restrict)
+
+  @@index([studentProfileId, transferredAt])
+  @@index([fromClassId])
+  @@index([toClassId])
+  @@map("student_class_transfers")
 }
