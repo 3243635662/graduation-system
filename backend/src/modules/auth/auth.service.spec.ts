@@ -21,6 +21,10 @@ interface PrismaMock {
   }
   role: { findUnique: ReturnType<typeof vi.fn> }
   userRole: { create: ReturnType<typeof vi.fn> }
+  /** 登录标识解析：学号 / 教师工号 / 工作人员工号 */
+  studentProfile: { findUnique: ReturnType<typeof vi.fn> }
+  teacherProfile: { findUnique: ReturnType<typeof vi.fn> }
+  personnelProfile: { findUnique: ReturnType<typeof vi.fn> }
   authSession: {
     create: ReturnType<typeof vi.fn>
     findUnique: ReturnType<typeof vi.fn>
@@ -34,6 +38,9 @@ function createPrismaMock(): PrismaMock {
     user: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     role: { findUnique: vi.fn() },
     userRole: { create: vi.fn() },
+    studentProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+    teacherProfile: { findUnique: vi.fn().mockResolvedValue(null) },
+    personnelProfile: { findUnique: vi.fn().mockResolvedValue(null) },
     authSession: {
       create: vi.fn(),
       findUnique: vi.fn(),
@@ -53,20 +60,26 @@ const studentRole = { id: 'role-student', code: 'STUDENT', name: '学生' }
 /** 认证响应中的角色摘要：附带组织范围与有效期，便于前端展示任职范围 */
 const studentRoleSummary = { ...studentRole, scopeOrgUnitId: null, validUntil: null }
 
-/** 学生角色分配：用于 userProfileSelect 的有效分配过滤 */
+/**
+ * 学生角色分配：用于 userProfileSelect 的有效分配过滤
+ *
+ * 当前授权表只保存仍然有效的分配（撤销即删除行），
+ * 因此这里不再有 revokedAt 字段；rolePermissions 用于汇总权限编码。
+ */
 const studentAssignment = {
   scopeOrgUnitId: null,
   validFrom: new Date('2026-01-01T00:00:00.000Z'),
   validUntil: null,
-  revokedAt: null,
-  role: { ...studentRole, status: 'ACTIVE' as const },
+  role: { ...studentRole, status: 'ACTIVE' as const, rolePermissions: [] },
   scopeOrgUnit: null,
 }
 
 const baseUser = {
   id: 'user-1',
   email: 'student@example.com',
-  displayName: '张三',
+  phone: null,
+  realName: '张三',
+  avatarUrl: null,
   status: 'ACTIVE' as const,
 }
 
@@ -94,7 +107,7 @@ describe('AuthService', () => {
 
   describe('register', () => {
     const registerInput = {
-      displayName: '张三',
+      realName: '张三',
       email: 'student@example.com',
       emailCode: '123456',
       password: 'password123',
@@ -117,8 +130,9 @@ describe('AuthService', () => {
       expect(payload.sub).toBe('user-1')
       expect(payload.sid).toBe('session-1')
 
+      // 学生注册不绑定组织节点，范围键固定为 GLOBAL
       expect(prisma.userRole.create).toHaveBeenCalledWith({
-        data: { userId: 'user-1', roleId: studentRole.id },
+        data: { userId: 'user-1', roleId: studentRole.id, scopeKey: 'GLOBAL' },
       })
       expect(emailCodeService.verifyAndConsumeRegisterCode).toHaveBeenCalledWith({
         email: 'student@example.com',
@@ -157,7 +171,10 @@ describe('AuthService', () => {
       prisma.authSession.create.mockResolvedValue({ id: 'session-1' })
       prisma.user.update.mockResolvedValue({})
 
-      const result = await service.login({ email: baseUser.email, password: 'password123' }, {})
+      const result = await service.login(
+        { identifier: baseUser.email, password: 'password123' },
+        {},
+      )
 
       expect(result.user.id).toBe('user-1')
       expect(result.user.roles).toEqual([studentRoleSummary])
@@ -169,7 +186,7 @@ describe('AuthService', () => {
 
       prisma.user.findUnique.mockResolvedValue(null)
       const missingUserError = await service
-        .login({ email: 'none@example.com', password: 'wrong' }, {})
+        .login({ identifier: 'none@example.com', password: 'wrong' }, {})
         .catch((error: unknown) => error)
 
       prisma.user.findUnique.mockResolvedValue({
@@ -178,12 +195,13 @@ describe('AuthService', () => {
         userRoles: [],
       })
       const wrongPasswordError = await service
-        .login({ email: baseUser.email, password: 'wrong' }, {})
+        .login({ identifier: baseUser.email, password: 'wrong' }, {})
         .catch((error: unknown) => error)
 
       expect(missingUserError).toBeInstanceOf(UnauthorizedException)
       expect(wrongPasswordError).toBeInstanceOf(UnauthorizedException)
       expect((missingUserError as Error).message).toBe((wrongPasswordError as Error).message)
+      expect((missingUserError as Error).message).toBe('账号或密码错误')
     })
 
     it('被禁用的用户无法登录', async () => {
@@ -197,8 +215,28 @@ describe('AuthService', () => {
       })
 
       await expect(
-        service.login({ email: baseUser.email, password: 'password123' }, {}),
+        service.login({ identifier: baseUser.email, password: 'password123' }, {}),
       ).rejects.toBeInstanceOf(ForbiddenException)
+    })
+
+    it('非邮箱标识按学号解析到对应账号', async () => {
+      const passwordHash = await argon2.hash('password123', { type: argon2.argon2id })
+
+      prisma.studentProfile.findUnique.mockResolvedValue({ userId: 'user-1' })
+      prisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        passwordHash,
+        userRoles: [studentAssignment],
+      })
+      prisma.authSession.create.mockResolvedValue({ id: 'session-1' })
+      prisma.user.update.mockResolvedValue({})
+
+      const result = await service.login({ identifier: '2024001', password: 'password123' }, {})
+
+      expect(prisma.studentProfile.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { studentNo: '2024001' } }),
+      )
+      expect(result.user.id).toBe('user-1')
     })
   })
 
@@ -368,7 +406,11 @@ describe('AuthService', () => {
 
       const result = await service.getMe({ userId: 'user-1', sessionId: 'session-1' })
 
-      expect(result).toEqual({ ...baseUser, roles: [studentRoleSummary] })
+      expect(result).toEqual({
+        ...baseUser,
+        roles: [studentRoleSummary],
+        permissions: [],
+      })
     })
 
     it('用户不存在时抛出 40101', async () => {

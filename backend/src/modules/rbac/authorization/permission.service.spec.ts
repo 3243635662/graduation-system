@@ -17,7 +17,6 @@ interface FakeAssignment {
   scopeOrgUnitId: string | null
   validFrom: Date
   validUntil: Date | null
-  revokedAt: Date | null
   createdAt: Date
   role: FakeRole
 }
@@ -39,7 +38,6 @@ function assignment(
     scopeOrgUnitId: null,
     validFrom: PAST,
     validUntil: null,
-    revokedAt: null,
     createdAt: PAST,
     role: { code: 'SCHOOL_ADMIN', name: '学校管理员', dataScope: 'SCHOOL', status: 'ACTIVE' },
     ...partial,
@@ -65,9 +63,9 @@ function createFakePrisma(
         const validFrom = (where['validFrom'] as { lte: Date } | undefined)?.lte
         const roleStatus = (where['role'] as { status?: string } | undefined)?.status
 
+        // user_roles 只保存当前有效授权：撤销即删除行，这里无需再判断 revokedAt
         return assignments
           .filter((item) => item.userId === where['userId'])
-          .filter((item) => (where['revokedAt'] === null ? item.revokedAt === null : true))
           .filter((item) => (validFrom ? item.validFrom.getTime() <= validFrom.getTime() : true))
           .filter((item) => {
             if (!validUntilConditions) return true
@@ -112,11 +110,10 @@ const allowAllEligibility = {
 } as unknown as ConstructorParameters<typeof PermissionService>[1]
 
 describe('PermissionService.findEffectiveAssignments', () => {
-  it('只返回未撤销、已生效、未过期且角色启用的分配', async () => {
+  it('只返回已生效、未过期且角色启用的分配（撤销即删除行，无需再过滤）', async () => {
     const prisma = createFakePrisma(
       [
         assignment({ id: 'a-active', roleId: 'role-school' }),
-        assignment({ id: 'a-revoked', roleId: 'role-school', revokedAt: PAST }),
         assignment({ id: 'a-future', roleId: 'role-school', validFrom: FUTURE }),
         assignment({ id: 'a-expired', roleId: 'role-school', validUntil: PAST }),
         assignment({

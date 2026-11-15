@@ -165,7 +165,7 @@ export class CounselorClassAssignmentService {
       this.prisma.counselorClassAssignment.findMany({
         where,
         include: {
-          user: { select: { id: true, displayName: true, email: true, status: true } },
+          user: { select: { id: true, realName: true, email: true, status: true } },
           class: { select: { id: true, name: true, code: true } },
         },
         orderBy: [{ validFrom: 'desc' }, { id: 'desc' }],
@@ -179,7 +179,7 @@ export class CounselorClassAssignmentService {
       list: list.map((item) => ({
         id: item.id,
         userId: item.userId,
-        userName: item.user.displayName,
+        userName: item.user.realName,
         userEmail: item.user.email,
         userStatus: item.user.status,
         classId: item.classId,
@@ -200,7 +200,7 @@ export class CounselorClassAssignmentService {
   async listByClass(classId: string, includeRevoked = false) {
     return this.prisma.counselorClassAssignment.findMany({
       where: { classId, ...this.effectiveWhere(includeRevoked) },
-      include: { user: { select: { id: true, displayName: true, email: true } } },
+      include: { user: { select: { id: true, realName: true, email: true } } },
       orderBy: { validFrom: 'desc' },
     })
   }

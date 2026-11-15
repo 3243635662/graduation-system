@@ -10,15 +10,28 @@ export {}
 declare global {
   const API_BASE_URL: typeof import('../constants/app-config').API_BASE_URL
   const API_TIMEOUT: typeof import('../constants/app-config').API_TIMEOUT
+  const ASSIGNMENT_RECORD_STATUS_LABEL: typeof import('../constants/rbac-labels').ASSIGNMENT_RECORD_STATUS_LABEL
+  const ASSIGNMENT_RECORD_STATUS_OPTIONS: typeof import('../constants/rbac-labels').ASSIGNMENT_RECORD_STATUS_OPTIONS
   const CONTENT_LAYOUTS: typeof import('../constants/themes').CONTENT_LAYOUTS
   const DEFAULT_PAGE_SIZE: typeof import('../constants/app').DEFAULT_PAGE_SIZE
+  const EMPLOYMENT_STATUS_LABEL: typeof import('../constants/rbac-labels').EMPLOYMENT_STATUS_LABEL
+  const EMPLOYMENT_STATUS_OPTIONS: typeof import('../constants/rbac-labels').EMPLOYMENT_STATUS_OPTIONS
+  const EMPLOYMENT_STATUS_TONE: typeof import('../constants/rbac-labels').EMPLOYMENT_STATUS_TONE
+  const ENROLLMENT_STATUS_LABEL: typeof import('../constants/rbac-labels').ENROLLMENT_STATUS_LABEL
+  const ENROLLMENT_STATUS_OPTIONS: typeof import('../constants/rbac-labels').ENROLLMENT_STATUS_OPTIONS
+  const ENROLLMENT_STATUS_TONE: typeof import('../constants/rbac-labels').ENROLLMENT_STATUS_TONE
   const EffectScope: typeof import('vue').EffectScope
   const HOME_PATH: typeof import('../constants/app').HOME_PATH
   const LOGIN_PATH: typeof import('../constants/app').LOGIN_PATH
+  const ORGANIZATION_STATUS_LABEL: typeof import('../constants/rbac-labels').ORGANIZATION_STATUS_LABEL
+  const ORGANIZATION_TYPE_LABEL: typeof import('../constants/rbac-labels').ORGANIZATION_TYPE_LABEL
   const PAGE_SIZES: typeof import('../constants/app').PAGE_SIZES
   const SELECTED_OPTION_CLASS: typeof import('../constants/themes').SELECTED_OPTION_CLASS
   const THEMES: typeof import('../constants/themes').THEMES
   const THEME_PRIMARY_COLORS: typeof import('../constants/themes').THEME_PRIMARY_COLORS
+  const USER_STATUS_LABEL: typeof import('../constants/rbac-labels').USER_STATUS_LABEL
+  const USER_STATUS_OPTIONS: typeof import('../constants/rbac-labels').USER_STATUS_OPTIONS
+  const USER_STATUS_TONE: typeof import('../constants/rbac-labels').USER_STATUS_TONE
   const computed: typeof import('vue').computed
   const createApp: typeof import('vue').createApp
   const customRef: typeof import('vue').customRef
@@ -81,14 +94,17 @@ declare global {
   const useFieldErrors: typeof import('../composables/use-field-errors').useFieldErrors
   const useId: typeof import('vue').useId
   const useLink: (typeof import('vue-router'))['useLink']
+  const useListQuery: typeof import('../composables/use-list-query').useListQuery
   const useMenuStore: typeof import('../stores/menu').useMenuStore
   const useModal: typeof import('../composables/use-modal').useModal
   const useModel: typeof import('vue').useModel
+  const useOrganizationOptions: typeof import('../composables/use-organization-options').useOrganizationOptions
   const useRoute: typeof import('vue-router').useRoute
   const useRouter: typeof import('vue-router').useRouter
   const useSidebarConfigStore: typeof import('../stores/sidebar-config').useSidebarConfigStore
   const useSidebarNavigation: typeof import('../composables/use-sidebar-navigation').useSidebarNavigation
   const useSlots: typeof import('vue').useSlots
+  const useSubmitAction: typeof import('../composables/use-submit-action').useSubmitAction
   const useSystemConfig: typeof import('../composables/use-system-config').useSystemConfig
   const useSystemConfigQuery: typeof import('../composables/use-system-config-query').useSystemConfigQuery
   const useSystemTheme: typeof import('../composables/use-system-theme').useSystemTheme
@@ -108,6 +124,18 @@ declare global {
   // @ts-ignore
   export type { FieldErrorItem } from '../composables/use-field-errors'
   import('../composables/use-field-errors')
+  // @ts-ignore
+  export type { UseListQueryOptions } from '../composables/use-list-query'
+  import('../composables/use-list-query')
+  // @ts-ignore
+  export type { OrganizationOption } from '../composables/use-organization-options'
+  import('../composables/use-organization-options')
+  // @ts-ignore
+  export type { SubmitActionOptions } from '../composables/use-submit-action'
+  import('../composables/use-submit-action')
+  // @ts-ignore
+  export type { StatusTone } from '../constants/rbac-labels'
+  import('../constants/rbac-labels')
   // @ts-ignore
   export type { Theme, ContentLayout } from '../constants/themes'
   import('../constants/themes')

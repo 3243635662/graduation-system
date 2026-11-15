@@ -1,5 +1,5 @@
 import { PermissionCode } from '@graduation/shared'
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common'
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import type { SchemaObject } from '@nestjs/swagger'
 
@@ -12,7 +12,14 @@ import { AccessTokenGuard } from '../auth/guards/access-token.guard.js'
 import type { AuthUserContext } from '../auth/types/auth-user.type.js'
 import { PermissionsGuard } from '../rbac/authorization/permissions.guard.js'
 import { RequirePermissions } from '../rbac/authorization/require-permissions.decorator.js'
-import { userListQuerySchema, type UserListQuery } from './users.schema.js'
+import {
+  updateMyProfileSchema,
+  updateUserAccountSchema,
+  userListQuerySchema,
+  type UpdateMyProfileBody,
+  type UpdateUserAccountBody,
+  type UserListQuery,
+} from './users.schema.js'
 import { UsersService } from './users.service.js'
 
 const roleSummarySchema: SchemaObject = {
@@ -114,6 +121,51 @@ export class UsersController {
     @Query({ schema: userListQuerySchema }) query: UserListQuery,
   ) {
     return this.usersService.list(authUser.userId, query)
+  }
+
+  /**
+   * 修改本人公共资料。
+   *
+   * 方法级 @RequirePermissions() 覆盖类级的 USER_READ，
+   * 使任何已登录账号（含学生、教师）都能维护自己的真名/手机号/头像。
+   */
+  @Patch('me/profile')
+  @RequirePermissions()
+  @ApiOperation({
+    summary: '修改本人公共资料',
+    description: '只允许真名、手机号与头像；学号、工号、班级与组织归属必须走各自档案接口。',
+  })
+  @ApiSuccessResponse({ description: '修改成功', dataSchema: { type: 'object' } })
+  @ApiErrorResponse({
+    status: 400,
+    code: 40001,
+    message: '请求参数校验失败',
+    dataSchema: validationIssuesSchema,
+  })
+  @ApiErrorResponse({ status: 401, code: 40101, message: '未登录或登录状态已失效' })
+  @ApiErrorResponse({ status: 409, code: 40900, message: '手机号已被其他账号使用' })
+  updateMyProfile(
+    @CurrentUser() authUser: AuthUserContext,
+    @Body({ schema: updateMyProfileSchema }) body: UpdateMyProfileBody,
+  ) {
+    return this.usersService.updateMyProfile(authUser.userId, body)
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PermissionCode.USER_UPDATE)
+  @ApiOperation({
+    summary: '修改账号状态与公共资料',
+    description: '不包含学号、工号、班级归属与正式组织归属；这些必须通过对应档案接口变更。',
+  })
+  @ApiSuccessResponse({ description: '修改成功', dataSchema: { type: 'object' } })
+  @ApiErrorResponse({ status: 403, code: 40300, message: '该用户不在当前访问范围内' })
+  @ApiErrorResponse({ status: 409, code: 40900, message: '手机号已被其他账号使用' })
+  updateAccount(
+    @CurrentUser() authUser: AuthUserContext,
+    @Param({ schema: idParamSchema }) params: IdParam,
+    @Body({ schema: updateUserAccountSchema }) body: UpdateUserAccountBody,
+  ) {
+    return this.usersService.updateAccount(authUser.userId, params.id, body)
   }
 
   @Get(':id')

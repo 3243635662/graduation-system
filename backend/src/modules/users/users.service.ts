@@ -1,5 +1,5 @@
 import { PermissionCode } from '@graduation/shared'
-import { ForbiddenException, Injectable } from '@nestjs/common'
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common'
 
 import type { Prisma } from '../../../generated/prisma/client.js'
 import { paginate } from '../../common/utils/pagination.util.js'
@@ -11,7 +11,7 @@ import {
 } from '../rbac/authorization/organization-scope.service.js'
 import { PermissionService } from '../rbac/authorization/permission.service.js'
 import { OrganizationService } from '../rbac/organizations/organization.service.js'
-import type { UserListQuery } from './users.schema.js'
+import type { UpdateMyProfileBody, UpdateUserAccountBody, UserListQuery } from './users.schema.js'
 
 export interface UserRoleSummary {
   id: string
@@ -29,6 +29,7 @@ export interface UserListItem {
   id: string
   realName: string
   email: string
+  phone: string | null
   status: string
   lastLoginAt: Date | null
   createdAt: Date
@@ -60,6 +61,7 @@ const USER_SELECT = {
   id: true,
   realName: true,
   email: true,
+  phone: true,
   status: true,
   lastLoginAt: true,
   createdAt: true,
@@ -218,6 +220,64 @@ export class UsersService {
       qualifiedCoordinatorKeys: qualifiedCoordinators.keys,
       userOrgIds: orgIds,
     })
+  }
+
+  /**
+   * 修改本人公共资料。
+   *
+   * 只允许真名、手机号与头像；学号、工号、班级与正式组织归属
+   * 必须通过各自的档案接口变更，避免绕过历史记录。
+   */
+  async updateMyProfile(userId: string, input: UpdateMyProfileBody) {
+    return this.applyProfileUpdate(userId, input)
+  }
+
+  /** 管理员修改账号：先做可见性校验，再更新状态与公共资料 */
+  async updateAccount(actorId: string, userId: string, input: UpdateUserAccountBody) {
+    await this.findOne(actorId, userId)
+
+    if (input.status) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { status: input.status },
+      })
+    }
+
+    return this.applyProfileUpdate(userId, input)
+  }
+
+  private async applyProfileUpdate(
+    userId: string,
+    input: { realName?: string; phone?: string | null; avatarUrl?: string | null },
+  ) {
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(input.realName === undefined ? {} : { realName: input.realName.trim() }),
+          ...(input.phone === undefined ? {} : { phone: input.phone?.trim() || null }),
+          ...(input.avatarUrl === undefined ? {} : { avatarUrl: input.avatarUrl?.trim() || null }),
+        },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          realName: true,
+          avatarUrl: true,
+          status: true,
+        },
+      })
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        (error as { code?: string }).code === 'P2002'
+      ) {
+        throw new ConflictException('手机号已被其他账号使用')
+      }
+
+      throw error
+    }
   }
 
   /** 计算当前调用者的账号可见组织集合；ALL / NONE 均不允许普通用户列表 */
@@ -475,6 +535,7 @@ export class UsersService {
       id: user.id,
       realName: user.realName,
       email: user.email,
+      phone: user.phone,
       status: user.status,
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,

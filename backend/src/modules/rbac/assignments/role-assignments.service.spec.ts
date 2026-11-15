@@ -20,12 +20,12 @@ type ScopeType = 'SCHOOL' | 'DEPARTMENT' | 'MAJOR' | 'CLASS'
 interface FakeRow {
   id: string
   userId: string
+  roleId: string
   scopeOrgUnitId: string | null
+  scopeKey: string
   validFrom: Date
   validUntil: Date | null
-  revokedAt: Date | null
   assignedById: string | null
-  revokedById: string | null
   createdAt: Date
   role: { code: string; name: string; dataScope: string; status: 'ACTIVE' | 'DISABLED' }
   scopeOrgUnit: { name: string; type: string } | null
@@ -70,7 +70,15 @@ interface HarnessOptions {
   users?: Record<string, { id: string; status: 'ACTIVE' | 'DISABLED'; deletedAt: Date | null }>
   roles?: Record<string, { id: string; status: 'ACTIVE' | 'DISABLED' }>
   rows?: FakeRow[]
+  /** 预置一条同 (userId, roleId, scopeKey) 的授权，模拟唯一键冲突 */
   duplicated?: boolean
+  /** 模拟并发撤销：事务内再次读取当前行时已被其他请求删除 */
+  revokedConcurrently?: boolean
+}
+
+/** Prisma 唯一约束冲突（P2002） */
+function uniqueError(): never {
+  throw Object.assign(new Error('unique'), { code: 'P2002' })
 }
 
 const CLASS_UNIT = { id: 'org-se-1', type: 'CLASS' as const, status: 'ACTIVE' as const }
@@ -80,6 +88,7 @@ const TARGET_USER = { id: 'user-target', status: 'ACTIVE' as const, deletedAt: n
 function createHarness(options: HarnessOptions = {}) {
   const invalidated: string[] = []
   const created: FakeRow[] = []
+  const history: Array<Record<string, unknown>> = []
   const rows = (options.rows ?? []).map((row) => ({ ...row }))
   const units = options.units ?? { [CLASS_UNIT.id]: CLASS_UNIT, [MAJOR_UNIT.id]: MAJOR_UNIT }
   const users = options.users ?? { [TARGET_USER.id]: TARGET_USER }
@@ -88,6 +97,19 @@ function createHarness(options: HarnessOptions = {}) {
     [RoleCode.TEACHER]: { id: 'role-TEACHER', status: 'ACTIVE' as const },
   }
   const allowedScopeIds = options.allowedScopeIds ?? ['org-cs', 'org-se', 'org-se-1']
+
+  /** 唯一键 uk_user_role_scope(userId, roleId, scopeKey) 的内存模拟 */
+  const assignmentKeys = new Set<string>(
+    options.duplicated
+      ? [`${TARGET_USER.id}:${roles[RoleCode.CLASS_COORDINATOR]?.id}:${CLASS_UNIT.id}`]
+      : [],
+  )
+
+  for (const row of rows) {
+    assignmentKeys.add(`${row.userId}:${row.roleId}:${row.scopeKey}`)
+  }
+
+  let readCount = 0
 
   const prisma = {
     $transaction: async (callback: (tx: unknown) => unknown) => callback(prisma),
@@ -103,19 +125,22 @@ function createHarness(options: HarnessOptions = {}) {
     },
     userRole: {
       async findUnique({ where }: { where: { id: string } }) {
+        readCount += 1
+
+        if (options.revokedConcurrently && readCount > 1) return null
+
         return rows.find((row) => row.id === where.id) ?? null
       },
-      async findFirst() {
-        return options.duplicated ? { id: 'duplicated' } : null
-      },
-      async findMany({ where }: { where: { userId: string; revokedAt?: null } }) {
-        return rows.filter(
-          (row) =>
-            row.userId === where.userId &&
-            (where.revokedAt === null ? row.revokedAt === null : true),
-        )
+      async findMany({ where }: { where: { userId: string } }) {
+        return rows.filter((row) => row.userId === where.userId)
       },
       async create({ data }: { data: Record<string, unknown> }) {
+        const key = `${String(data['userId'])}:${String(data['roleId'])}:${String(data['scopeKey'])}`
+
+        if (assignmentKeys.has(key)) uniqueError()
+
+        assignmentKeys.add(key)
+
         const roleEntry = Object.entries(roles).find(([, value]) => value.id === data['roleId'])
         const roleCode = roleEntry?.[0] ?? 'UNKNOWN'
         const scopeUnitId = (data['scopeOrgUnitId'] as string | null | undefined) ?? null
@@ -124,12 +149,12 @@ function createHarness(options: HarnessOptions = {}) {
         const row: FakeRow = {
           id: 'assignment-new',
           userId: String(data['userId']),
+          roleId: String(data['roleId']),
           scopeOrgUnitId: scopeUnitId,
+          scopeKey: String(data['scopeKey']),
           validFrom: data['validFrom'] as Date,
           validUntil: (data['validUntil'] as Date | null | undefined) ?? null,
-          revokedAt: null,
           assignedById: (data['assignedById'] as string | null | undefined) ?? null,
-          revokedById: null,
           createdAt: new Date(),
           role: {
             code: roleCode,
@@ -145,20 +170,23 @@ function createHarness(options: HarnessOptions = {}) {
 
         return row
       },
-      async updateMany({
-        where,
-        data,
-      }: {
-        where: { id: string; revokedAt: null }
-        data: Record<string, unknown>
-      }) {
-        const row = rows.find((item) => item.id === where.id && item.revokedAt === null)
+      async deleteMany({ where }: { where: { id: string } }) {
+        const index = rows.findIndex((row) => row.id === where.id)
 
-        if (!row) return { count: 0 }
+        if (index < 0) return { count: 0 }
 
-        Object.assign(row, data)
+        const [removed] = rows.splice(index, 1)
+
+        assignmentKeys.delete(`${removed!.userId}:${removed!.roleId}:${removed!.scopeKey}`)
 
         return { count: 1 }
+      },
+    },
+    userRoleHistory: {
+      async create({ data }: { data: Record<string, unknown> }) {
+        history.push(data)
+
+        return { id: `history-${history.length}`, ...data }
       },
     },
   }
@@ -210,7 +238,16 @@ function createHarness(options: HarnessOptions = {}) {
     coordinatorEligibility as unknown as import('../../profiles/coordinator-eligibility.service.js').CoordinatorEligibilityService,
   )
 
-  return { service, invalidated, created, rows, permissionService, scopeService }
+  return {
+    service,
+    invalidated,
+    created,
+    rows,
+    history,
+    permissionService,
+    scopeService,
+    coordinatorEligibility,
+  }
 }
 
 const deptActorPermissions = permissionsFor(RoleCode.DEPARTMENT_ADMIN, 'DEPARTMENT', 'org-cs')
@@ -232,10 +269,32 @@ describe('RoleAssignmentsService.assign', () => {
     expect(result).toMatchObject({
       roleCode: RoleCode.CLASS_COORDINATOR,
       scopeOrgUnitId: CLASS_UNIT.id,
+      // 组织级授权的范围键必须与组织节点 ID 一致
+      scopeKey: CLASS_UNIT.id,
       assignedById: 'actor-dept',
       isEffective: true,
     })
     expect(harness.invalidated).toEqual(['user-role.assign'])
+    expect(harness.coordinatorEligibility.assertEligible).toHaveBeenCalledWith(
+      TARGET_USER.id,
+      CLASS_UNIT.id,
+    )
+  })
+
+  it('不绑定组织的角色使用 GLOBAL 范围键', async () => {
+    const harness = createHarness({
+      permissions: permissionsFor(RoleCode.SCHOOL_ADMIN, 'SCHOOL', 'org-school'),
+      scope: { kind: 'SUBTREE', orgUnitIds: ['org-school', 'org-cs', 'org-se', 'org-se-1'] },
+    })
+
+    const result = await harness.service.assign('actor-school', {
+      userId: TARGET_USER.id,
+      roleCode: RoleCode.TEACHER,
+      scopeOrgUnitId: null,
+    })
+
+    expect(result.scopeOrgUnitId).toBeNull()
+    expect(result.scopeKey).toBe('GLOBAL')
   })
 
   it('院系管理员不能把协管员分配到其他院系的班级', async () => {
@@ -285,22 +344,6 @@ describe('RoleAssignmentsService.assign', () => {
     ).rejects.toBeInstanceOf(ForbiddenException)
   })
 
-  it('学校管理员可以分配教师角色（不绑定组织）', async () => {
-    const harness = createHarness({
-      permissions: permissionsFor(RoleCode.SCHOOL_ADMIN, 'SCHOOL', 'org-school'),
-      scope: { kind: 'SUBTREE', orgUnitIds: ['org-school', 'org-cs', 'org-se', 'org-se-1'] },
-    })
-
-    const result = await harness.service.assign('actor-school', {
-      userId: TARGET_USER.id,
-      roleCode: RoleCode.TEACHER,
-      scopeOrgUnitId: null,
-    })
-
-    expect(result.roleCode).toBe(RoleCode.TEACHER)
-    expect(result.scopeOrgUnitId).toBeNull()
-  })
-
   it('角色必须绑定与其类型匹配的组织节点', async () => {
     const harness = createHarness({ permissions: deptActorPermissions, scope: deptScope })
 
@@ -330,7 +373,7 @@ describe('RoleAssignmentsService.assign', () => {
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 
-  it('重复的有效分配返回 409', async () => {
+  it('重复分配同一范围角色由唯一键拦截并返回 409', async () => {
     const harness = createHarness({
       permissions: deptActorPermissions,
       scope: deptScope,
@@ -344,6 +387,8 @@ describe('RoleAssignmentsService.assign', () => {
         scopeOrgUnitId: CLASS_UNIT.id,
       }),
     ).rejects.toBeInstanceOf(ConflictException)
+
+    expect(harness.invalidated).toEqual([])
   })
 
   it('已禁用用户不能被分配角色', async () => {
@@ -380,12 +425,12 @@ describe('RoleAssignmentsService.revoke', () => {
   const baseRow: FakeRow = {
     id: 'assignment-1',
     userId: 'user-target',
+    roleId: 'role-CLASS_COORDINATOR',
     scopeOrgUnitId: CLASS_UNIT.id,
+    scopeKey: CLASS_UNIT.id,
     validFrom: new Date(0),
     validUntil: null,
-    revokedAt: null,
     assignedById: 'actor-dept',
-    revokedById: null,
     createdAt: new Date(0),
     role: {
       code: RoleCode.CLASS_COORDINATOR,
@@ -396,7 +441,7 @@ describe('RoleAssignmentsService.revoke', () => {
     scopeOrgUnit: { name: '软件工程一班', type: 'CLASS' },
   }
 
-  it('院系管理员可撤销本院系班级的协管员分配，只写撤销字段', async () => {
+  it('院系管理员可撤销本院系班级的协管员分配：写历史快照并删除当前授权行', async () => {
     const harness = createHarness({
       permissions: deptActorPermissions,
       scope: deptScope,
@@ -405,9 +450,40 @@ describe('RoleAssignmentsService.revoke', () => {
 
     const result = await harness.service.revoke('actor-dept', baseRow.id)
 
-    expect(result).toMatchObject({ id: baseRow.id, revokedById: 'actor-dept', isEffective: false })
-    expect(harness.rows[0]?.revokedAt).toBeInstanceOf(Date)
+    // 撤销接口返回被撤销的当前授权行 ID
+    expect(result).toBe(baseRow.id)
+    expect(harness.rows).toHaveLength(0)
+    expect(harness.history).toHaveLength(1)
+    expect(harness.history[0]).toMatchObject({
+      userRoleId: baseRow.id,
+      userId: baseRow.userId,
+      roleId: baseRow.roleId,
+      roleCode: RoleCode.CLASS_COORDINATOR,
+      scopeOrgUnitId: CLASS_UNIT.id,
+      scopeKey: CLASS_UNIT.id,
+      revokedById: 'actor-dept',
+      revocationReason: 'MANUAL',
+    })
     expect(harness.invalidated).toEqual(['user-role.revoke'])
+  })
+
+  it('撤销后可以重新分配同一范围角色', async () => {
+    const harness = createHarness({
+      permissions: deptActorPermissions,
+      scope: deptScope,
+      rows: [baseRow],
+    })
+
+    await harness.service.revoke('actor-dept', baseRow.id)
+
+    const reassigned = await harness.service.assign('actor-dept', {
+      userId: TARGET_USER.id,
+      roleCode: RoleCode.CLASS_COORDINATOR,
+      scopeOrgUnitId: CLASS_UNIT.id,
+    })
+
+    expect(reassigned.id).not.toBe(baseRow.id)
+    expect(harness.created).toHaveLength(1)
   })
 
   it('不能撤销自己的角色分配', async () => {
@@ -426,7 +502,7 @@ describe('RoleAssignmentsService.revoke', () => {
     const harness = createHarness({
       permissions: deptActorPermissions,
       scope: deptScope,
-      rows: [{ ...baseRow, scopeOrgUnitId: 'org-econ-1' }],
+      rows: [{ ...baseRow, scopeOrgUnitId: 'org-econ-1', scopeKey: 'org-econ-1' }],
     })
 
     await expect(harness.service.revoke('actor-dept', baseRow.id)).rejects.toBeInstanceOf(
@@ -434,16 +510,28 @@ describe('RoleAssignmentsService.revoke', () => {
     )
   })
 
-  it('已撤销的分配再次撤销返回 409', async () => {
+  it('并发撤销时事务内已查不到当前行 → 409', async () => {
     const harness = createHarness({
       permissions: deptActorPermissions,
       scope: deptScope,
-      rows: [{ ...baseRow, revokedAt: new Date(0) }],
+      rows: [baseRow],
+      revokedConcurrently: true,
     })
 
     await expect(harness.service.revoke('actor-dept', baseRow.id)).rejects.toBeInstanceOf(
       ConflictException,
     )
+
+    expect(harness.history).toHaveLength(0)
+    expect(harness.invalidated).toEqual([])
+  })
+
+  it('分配记录不存在时返回 404', async () => {
+    const harness = createHarness({ permissions: deptActorPermissions, scope: deptScope })
+
+    await expect(harness.service.revoke('actor-dept', 'missing')).rejects.toMatchObject({
+      status: 404,
+    })
   })
 })
 
@@ -463,12 +551,12 @@ describe('RoleAssignmentsService 查询', () => {
     const row = (id: string, scopeOrgUnitId: string): FakeRow => ({
       id,
       userId: TARGET_USER.id,
+      roleId: 'role-CLASS_COORDINATOR',
       scopeOrgUnitId,
+      scopeKey: scopeOrgUnitId,
       validFrom: new Date(0),
       validUntil: null,
-      revokedAt: null,
       assignedById: 'actor',
-      revokedById: null,
       createdAt: new Date(0),
       role: {
         code: RoleCode.CLASS_COORDINATOR,
@@ -498,12 +586,12 @@ describe('RoleAssignmentsService 查询', () => {
         {
           id: 'a-school-admin',
           userId: TARGET_USER.id,
+          roleId: 'role-SCHOOL_ADMIN',
           scopeOrgUnitId: 'org-school',
+          scopeKey: 'org-school',
           validFrom: new Date(0),
           validUntil: null,
-          revokedAt: null,
           assignedById: 'actor',
-          revokedById: null,
           createdAt: new Date(0),
           role: {
             code: RoleCode.SCHOOL_ADMIN,
@@ -529,12 +617,12 @@ describe('RoleAssignmentsService 查询', () => {
         {
           id: 'a-teacher',
           userId: TARGET_USER.id,
+          roleId: 'role-TEACHER',
           scopeOrgUnitId: null,
+          scopeKey: 'GLOBAL',
           validFrom: new Date(0),
           validUntil: null,
-          revokedAt: null,
           assignedById: 'actor',
-          revokedById: null,
           createdAt: new Date(0),
           role: {
             code: RoleCode.TEACHER,

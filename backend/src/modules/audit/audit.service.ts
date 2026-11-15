@@ -18,8 +18,14 @@ import type { AuditRecordInput } from './audit.types.js'
  */
 export type AuditWriteClient = Pick<Prisma.TransactionClient, 'auditLog'>
 
-/** 稳定动作编码：小写字母开头，至少两段，例如 student.profile.transfer */
-const ACTION_PATTERN = /^[a-z][a-z0-9]*(?:\.[a-z0-9]+)+$/
+/**
+ * 稳定动作编码：小写字母开头，至少两段，点分。
+ *
+ * 每段允许小写字母、数字与下划线，例如：
+ * - student.profile.transfer
+ * - student.profile.assign_class
+ */
+const ACTION_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$/
 
 /** 目标类型编码：大写下划线，例如 STUDENT_PROFILE */
 const TARGET_TYPE_PATTERN = /^[A-Z][A-Z0-9_]*$/

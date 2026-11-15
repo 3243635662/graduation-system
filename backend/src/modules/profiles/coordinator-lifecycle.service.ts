@@ -83,6 +83,13 @@ export class CoordinatorLifecycleService {
     if (!assignment) return []
 
     const result = await this.eligibility.evaluate(userId, classId, tx)
+    /**
+     * 只处理「依据仅来自本班学生身份」的情况；
+     * 完全没有资格的场景由 revokeIfIneligible 负责。
+     *
+     * 调用方（转班事务）必须在更新 classId 之前调用本方法，
+     * 否则档案已指向新班级，旧班级的学生依据将不可见。
+     */
     const studentOnly =
       result.bases.length > 0 && result.bases.every((basis) => basis === 'STUDENT_SELF')
 

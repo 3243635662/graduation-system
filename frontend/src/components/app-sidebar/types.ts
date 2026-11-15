@@ -34,12 +34,6 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-export interface User {
-  name: string
-  avatar: string
-  email: string
-}
-
 export interface Team {
   name: string
   logo: NavIcon
@@ -49,9 +43,9 @@ export interface Team {
 /**
  * 侧边栏静态数据
  *
- * 主菜单不再放在这里：它由 useMenuStore().navGroups 提供（后端真实菜单）。
+ * 主菜单由 useMenuStore().navGroups 提供（后端真实菜单），
+ * 当前用户信息由 auth store 提供，这里只保留与账号无关的静态配置。
  */
 export interface SidebarData {
-  user: User
   teams: Team[]
 }

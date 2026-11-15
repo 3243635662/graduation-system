@@ -10,7 +10,8 @@ import { configureGlobalEnhancers } from '../src/common/configure-global-enhance
 import { PrismaService } from '../src/prisma/prisma.service.js'
 
 describe('学生档案 API (e2e)', () => {
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  // 学号 / 工号最长 32 个字符，后缀保持紧凑
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
   const password = 'StudentE2E!123'
   const api = '/api'
 
@@ -36,7 +37,7 @@ describe('学生档案 API (e2e)', () => {
       data: {
         email: `${label}-${suffix}@example.test`,
         passwordHash: await hash(password),
-        displayName: label,
+        realName: label,
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -55,6 +56,7 @@ describe('学生档案 API (e2e)', () => {
           userId: user.id,
           roleId: role.id,
           scopeOrgUnitId: scopeOrgUnitId ?? null,
+          scopeKey: scopeOrgUnitId ?? 'GLOBAL',
         },
       })
     }
@@ -62,10 +64,10 @@ describe('学生档案 API (e2e)', () => {
     return user.id
   }
 
-  async function login(email: string, pwd: string) {
+  async function login(identifier: string, pwd: string = password) {
     const response = await request(app.getHttpServer())
       .post(`${api}/auth/login`)
-      .send({ email, password: pwd })
+      .send({ identifier, password: pwd })
 
     expect([200, 201]).toContain(response.status)
 
@@ -91,7 +93,7 @@ describe('学生档案 API (e2e)', () => {
 
   async function createProfile(
     token: string,
-    body: { name: string; studentNo: string; classId: string },
+    body: { userId: string; studentNo: string; classId?: string },
   ) {
     const response = await request(app.getHttpServer())
       .post(`${api}/student-profiles`)
@@ -135,8 +137,8 @@ describe('学生档案 API (e2e)', () => {
     await createUser('dept-admin', 'DEPARTMENT_ADMIN', deptA)
     await createUser('major-admin', 'MAJOR_ADMIN', majorA1)
 
-    deptToken = await login(`dept-admin-${suffix}@example.test`, password)
-    majorToken = await login(`major-admin-${suffix}@example.test`, password)
+    deptToken = await login(`dept-admin-${suffix}@example.test`)
+    majorToken = await login(`major-admin-${suffix}@example.test`)
 
     const schoolAdmin = await prisma.user.findFirstOrThrow({
       where: { email: process.env['SUPER_ADMIN_EMAIL'], deletedAt: null },
@@ -153,8 +155,9 @@ describe('学生档案 API (e2e)', () => {
     await prisma.studentClassTransfer.deleteMany({
       where: { studentProfileId: { in: profileIds } },
     })
-    await prisma.studentProfile.deleteMany({ where: { id: { in: profileIds } } })
+    await prisma.userRoleHistory.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } })
+    await prisma.studentProfile.deleteMany({ where: { id: { in: profileIds } } })
     await prisma.user.deleteMany({ where: { id: { in: userIds } } })
 
     for (const id of [...orgIds].reverse()) {
@@ -164,9 +167,11 @@ describe('学生档案 API (e2e)', () => {
     await app.close()
   }, 60_000)
 
-  it('可以创建未绑定账号的学生档案', async () => {
+  it('必须先有账号才能建立学生档案，详情返回账号摘要与班级路径', async () => {
+    const studentUserId = await createUser('profile-student')
+
     const profileId = await createProfile(schoolToken, {
-      name: '未注册学生',
+      userId: studentUserId,
       studentNo: `S-${suffix}-1`,
       classId: classA1,
     })
@@ -176,38 +181,137 @@ describe('学生档案 API (e2e)', () => {
       .set({ Authorization: `Bearer ${schoolToken}` })
       .expect(200)
 
-    expect(detail.body.data.hasAccount).toBe(false)
-    expect(detail.body.data.account).toBeNull()
+    // 账号摘要里的 id 即档案绑定的 userId（档案不再有 hasAccount 语义）
+    expect(detail.body.data.account.id).toBe(studentUserId)
+    expect(detail.body.data.realName).toBe('profile-student')
+    expect(detail.body.data.account.email).toBe(`profile-student-${suffix}@example.test`)
     expect(detail.body.data.className).toBe('学生测试班级A1')
+    expect(detail.body.data.majorName).toBe('学生测试专业A1')
+    // 档案不再保存第二份姓名，也不再有「无账号」语义
+    expect(detail.body.data).not.toHaveProperty('name')
+    expect(detail.body.data).not.toHaveProperty('hasAccount')
   })
 
-  it('学号重复 → 409；班级类型错误或停用 → 400', async () => {
-    const studentNo = `S-${suffix}-dup`
+  it('缺少 userId 时返回 400，不能创建无主档案', async () => {
+    const response = await request(app.getHttpServer())
+      .post(`${api}/student-profiles`)
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .send({ studentNo: `S-${suffix}-no-user`, classId: classA1 })
+      .expect(400)
 
-    await createProfile(schoolToken, { name: '重复学号', studentNo, classId: classA1 })
+    expect(response.body.code).toBe(40001)
+
+    const paths = (response.body.data as Array<{ path: string }>).map((issue) => issue.path)
+
+    expect(paths).toContain('userId')
+  })
+
+  it('绑定的账号不存在 → 404；学号重复 → 409；班级非法或停用 → 400/403', async () => {
+    await request(app.getHttpServer())
+      .post(`${api}/student-profiles`)
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .send({
+        userId: '00000000-0000-4000-8000-000000000001',
+        studentNo: `S-${suffix}-ghost`,
+        classId: classA1,
+      })
+      .expect(404)
+
+    const studentNo = `S-${suffix}-dup`
+    const firstUserId = await createUser('dup-first')
+    const secondUserId = await createUser('dup-second')
+
+    await createProfile(schoolToken, { userId: firstUserId, studentNo, classId: classA1 })
 
     await request(app.getHttpServer())
       .post(`${api}/student-profiles`)
       .set({ Authorization: `Bearer ${schoolToken}` })
-      .send({ name: '重复学号', studentNo, classId: classA1 })
+      .send({ userId: secondUserId, studentNo, classId: classA1 })
       .expect(409)
 
     await request(app.getHttpServer())
       .post(`${api}/student-profiles`)
       .set({ Authorization: `Bearer ${schoolToken}` })
-      .send({ name: '错误班级', studentNo: `S-${suffix}-bad`, classId: 'not-a-uuid' })
+      .send({ userId: secondUserId, studentNo: `S-${suffix}-bad`, classId: 'not-a-uuid' })
       .expect(400)
 
     await request(app.getHttpServer())
       .post(`${api}/student-profiles`)
       .set({ Authorization: `Bearer ${schoolToken}` })
-      .send({ name: '停用班级', studentNo: `S-${suffix}-disabled`, classId: disabledClass })
+      .send({ userId: secondUserId, studentNo: `S-${suffix}-disabled`, classId: disabledClass })
       .expect(403)
+
+    // 同一账号只能有一份学生档案
+    await request(app.getHttpServer())
+      .post(`${api}/student-profiles`)
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .send({ userId: firstUserId, studentNo: `S-${suffix}-second`, classId: classA1 })
+      .expect(409)
+  })
+
+  it('未分班学生可以正常建立档案，并能通过 unassignedOnly 筛出', async () => {
+    const studentUserId = await createUser('unassigned-student')
+    const studentNo = `S-${suffix}-unassigned`
+
+    const profileId = await createProfile(schoolToken, { userId: studentUserId, studentNo })
+
+    const detail = await request(app.getHttpServer())
+      .get(`${api}/student-profiles/${profileId}`)
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .expect(200)
+
+    expect(detail.body.data.classId).toBeNull()
+    expect(detail.body.data.className).toBeNull()
+
+    const unassigned = await request(app.getHttpServer())
+      .get(`${api}/student-profiles`)
+      .query({ page: 1, pageSize: 50, unassignedOnly: 'true', studentNo })
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .expect(200)
+
+    expect(unassigned.body.data.total).toBe(1)
+    expect(unassigned.body.data.list[0]).toMatchObject({
+      id: profileId,
+      studentNo,
+      classId: null,
+      className: null,
+    })
+
+    // 同样的学号在「已分班」筛选下不可见，说明 unassignedOnly 真的生效
+    const assigned = await request(app.getHttpServer())
+      .get(`${api}/student-profiles`)
+      .query({ page: 1, pageSize: 50, unassignedOnly: 'false', classId: classA1 })
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .expect(200)
+
+    expect(
+      (assigned.body.data.list as Array<{ studentNo: string }>).some(
+        (item) => item.studentNo === studentNo,
+      ),
+    ).toBe(false)
+
+    // 首次分班走同一个 transfer 接口
+    await request(app.getHttpServer())
+      .post(`${api}/student-profiles/${profileId}/transfer`)
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .send({ targetClassId: classA1, reason: '新生首次分班' })
+      .expect(201)
+
+    const assignedDetail = await request(app.getHttpServer())
+      .get(`${api}/student-profiles/${profileId}`)
+      .set({ Authorization: `Bearer ${schoolToken}` })
+      .expect(200)
+
+    expect(assignedDetail.body.data.classId).toBe(classA1)
+    expect(assignedDetail.body.data.transfers[0].fromClassId).toBeNull()
   })
 
   it('MAJOR_ADMIN 只能在本专业班级创建，跨专业 403', async () => {
+    const insideUserId = await createUser('major-inside')
+    const outsideUserId = await createUser('major-outside')
+
     await createProfile(majorToken, {
-      name: '专业内学生',
+      userId: insideUserId,
       studentNo: `S-${suffix}-major`,
       classId: classA2,
     })
@@ -215,26 +319,14 @@ describe('学生档案 API (e2e)', () => {
     await request(app.getHttpServer())
       .post(`${api}/student-profiles`)
       .set({ Authorization: `Bearer ${majorToken}` })
-      .send({ name: '跨专业学生', studentNo: `S-${suffix}-x`, classId: classB })
+      .send({ userId: outsideUserId, studentNo: `S-${suffix}-x`, classId: classB })
       .expect(403)
   })
 
-  it('列表包含未注册学生，并支持 hasAccount 过滤', async () => {
-    const response = await request(app.getHttpServer())
-      .get(`${api}/student-profiles`)
-      .query({ page: 1, pageSize: 50, classId: classA1 })
-      .set({ Authorization: `Bearer ${schoolToken}` })
-      .expect(200)
-
-    expect(response.body.data.total).toBeGreaterThanOrEqual(1)
-    expect(response.body.data.list.every((item: { hasAccount: boolean }) => !item.hasAccount)).toBe(
-      true,
-    )
-  })
-
   it('MAJOR_ADMIN 转班本专业成功并写入历史；转其他专业 403', async () => {
+    const studentUserId = await createUser('transfer-student')
     const profileId = await createProfile(schoolToken, {
-      name: '转班学生',
+      userId: studentUserId,
       studentNo: `S-${suffix}-transfer`,
       classId: classA1,
     })
@@ -262,8 +354,9 @@ describe('学生档案 API (e2e)', () => {
   })
 
   it('转班原因为空 → 400', async () => {
+    const studentUserId = await createUser('empty-reason')
     const profileId = await createProfile(schoolToken, {
-      name: '空原因',
+      userId: studentUserId,
       studentNo: `S-${suffix}-reason`,
       classId: classA1,
     })
@@ -275,7 +368,7 @@ describe('学生档案 API (e2e)', () => {
       .expect(400)
   })
 
-  it('学生转班后，仅由学生身份获得的旧班级协管角色被终止', async () => {
+  it('学生转班后，仅由学生身份获得的旧班级协管授权被终止并留下历史', async () => {
     const studentUserId = await createUser('transfer-coordinator', 'STUDENT')
     const role = await prisma.role.findUniqueOrThrow({
       where: { code: 'CLASS_COORDINATOR' },
@@ -286,7 +379,6 @@ describe('学生档案 API (e2e)', () => {
       data: {
         userId: studentUserId,
         studentNo: `S-${suffix}-coord`,
-        name: '协管学生',
         classId: classA1,
       },
       select: { id: true },
@@ -294,12 +386,14 @@ describe('学生档案 API (e2e)', () => {
 
     profileIds.push(profile.id)
 
-    await prisma.userRole.create({
+    const assignment = await prisma.userRole.create({
       data: {
         userId: studentUserId,
         roleId: role.id,
         scopeOrgUnitId: classA1,
+        scopeKey: classA1,
       },
+      select: { id: true },
     })
 
     await request(app.getHttpServer())
@@ -308,16 +402,20 @@ describe('学生档案 API (e2e)', () => {
       .send({ targetClassId: classA2, reason: '同专业转班' })
       .expect(201)
 
-    const assignment = await prisma.userRole.findFirstOrThrow({
-      where: { userId: studentUserId, roleId: role.id, scopeOrgUnitId: classA1 },
-      select: { revokedAt: true, revocationReason: true },
+    // 撤销语义：当前授权行被删除，历史表保留 QUALIFICATION_LOST 快照
+    expect(await prisma.userRole.count({ where: { id: assignment.id } })).toBe(0)
+
+    const history = await prisma.userRoleHistory.findFirstOrThrow({
+      where: { userRoleId: assignment.id },
+      select: { revocationReason: true, scopeOrgUnitId: true, userId: true },
     })
 
-    expect(assignment.revokedAt).not.toBeNull()
-    expect(assignment.revocationReason).toBe('QUALIFICATION_LOST')
+    expect(history.userId).toBe(studentUserId)
+    expect(history.scopeOrgUnitId).toBe(classA1)
+    expect(history.revocationReason).toBe('QUALIFICATION_LOST')
   })
 
-  it('MAJOR_ADMIN 无学籍状态权限 → 403；DEPARTMENT_ADMIN 修改并撤销失效协管角色', async () => {
+  it('学籍状态：MAJOR_ADMIN 只能改本专业学生；状态变化撤销失效协管角色', async () => {
     const studentUserId = await createUser('status-student', 'STUDENT')
     const role = await prisma.role.findUniqueOrThrow({
       where: { code: 'CLASS_COORDINATOR' },
@@ -328,7 +426,6 @@ describe('学生档案 API (e2e)', () => {
       data: {
         userId: studentUserId,
         studentNo: `S-${suffix}-status`,
-        name: '学籍学生',
         classId: classA1,
       },
       select: { id: true },
@@ -336,25 +433,36 @@ describe('学生档案 API (e2e)', () => {
 
     profileIds.push(profile.id)
 
-    await prisma.userRole.create({
+    const assignment = await prisma.userRole.create({
       data: {
         userId: studentUserId,
         roleId: role.id,
         scopeOrgUnitId: classA1,
+        scopeKey: classA1,
       },
+      select: { id: true },
     })
 
+    // 专业管理员拥有学籍状态权限，但只能作用于本专业学生
     await request(app.getHttpServer())
       .patch(`${api}/student-profiles/${profile.id}/status`)
       .set({ Authorization: `Bearer ${majorToken}` })
       .send({ enrollmentStatus: 'SUSPENDED' })
-      .expect(403)
+      .expect(200)
+
+    // 跨专业（classB 的学生）对专业管理员不可见
+    const outsideUserId = await createUser('status-outside')
+    const outsideProfileId = await createProfile(schoolToken, {
+      userId: outsideUserId,
+      studentNo: `S-${suffix}-outside`,
+      classId: classB,
+    })
 
     await request(app.getHttpServer())
-      .patch(`${api}/student-profiles/${profile.id}/status`)
-      .set({ Authorization: `Bearer ${deptToken}` })
+      .patch(`${api}/student-profiles/${outsideProfileId}/status`)
+      .set({ Authorization: `Bearer ${majorToken}` })
       .send({ enrollmentStatus: 'SUSPENDED' })
-      .expect(200)
+      .expect(403)
 
     const detail = await request(app.getHttpServer())
       .get(`${api}/student-profiles/${profile.id}`)
@@ -363,13 +471,14 @@ describe('学生档案 API (e2e)', () => {
 
     expect(detail.body.data.enrollmentStatus).toBe('SUSPENDED')
 
-    const revoked = await prisma.userRole.findFirstOrThrow({
-      where: { userId: studentUserId, roleId: role.id, scopeOrgUnitId: classA1 },
-      select: { revokedAt: true, revocationReason: true },
+    expect(await prisma.userRole.count({ where: { id: assignment.id } })).toBe(0)
+
+    const history = await prisma.userRoleHistory.findFirstOrThrow({
+      where: { userRoleId: assignment.id },
+      select: { revocationReason: true },
     })
 
-    expect(revoked.revokedAt).not.toBeNull()
-    expect(revoked.revocationReason).toBe('QUALIFICATION_LOST')
+    expect(history.revocationReason).toBe('QUALIFICATION_LOST')
 
     // 恢复 ACTIVE 不会自动恢复旧角色
     await request(app.getHttpServer())
@@ -378,21 +487,17 @@ describe('学生档案 API (e2e)', () => {
       .send({ enrollmentStatus: 'ACTIVE' })
       .expect(200)
 
-    const active = await prisma.userRole.count({
-      where: {
-        userId: studentUserId,
-        roleId: role.id,
-        scopeOrgUnitId: classA1,
-        revokedAt: null,
-      },
-    })
-
-    expect(active).toBe(0)
+    expect(
+      await prisma.userRole.count({
+        where: { userId: studentUserId, roleId: role.id, scopeOrgUnitId: classA1 },
+      }),
+    ).toBe(0)
   })
 
   it('DEPARTMENT_ADMIN 跨院系查看/转班 → 403', async () => {
+    const studentUserId = await createUser('other-dept-student')
     const profileId = await createProfile(schoolToken, {
-      name: '外院学生',
+      userId: studentUserId,
       studentNo: `S-${suffix}-other`,
       classId: classB,
     })
@@ -404,8 +509,9 @@ describe('学生档案 API (e2e)', () => {
   })
 
   it('同一学生并发转班只能成功一次', async () => {
+    const studentUserId = await createUser('race-student')
     const profileId = await createProfile(schoolToken, {
-      name: '并发转班',
+      userId: studentUserId,
       studentNo: `S-${suffix}-race`,
       classId: classA1,
     })

@@ -20,9 +20,12 @@ import { useAuthStore } from '../auth'
 const studentUser: AuthUser = {
   id: 'user-1',
   email: 'student@example.com',
-  displayName: '张三',
+  phone: null,
+  realName: '张三',
+  avatarUrl: null,
   status: 'ACTIVE',
   roles: [{ id: 'role-1', code: 'STUDENT', name: '学生' }],
+  permissions: [],
 }
 
 describe('auth store', () => {
@@ -36,7 +39,7 @@ describe('auth store', () => {
     authApi.login.mockResolvedValue({ accessToken: 'access-1', user: studentUser })
 
     const store = useAuthStore()
-    const user = await store.login({ email: 'student@example.com', password: 'password123' })
+    const user = await store.login({ identifier: 'student@example.com', password: 'password123' })
 
     expect(user).toEqual(studentUser)
     expect(store.isAuthenticated).toBe(true)
@@ -46,13 +49,13 @@ describe('auth store', () => {
   })
 
   it('登录失败时不改变认证状态', async () => {
-    authApi.login.mockRejectedValue(new Error('邮箱或密码错误'))
+    authApi.login.mockRejectedValue(new Error('账号或密码错误'))
 
     const store = useAuthStore()
 
-    await expect(store.login({ email: 'student@example.com', password: 'wrong' })).rejects.toThrow(
-      '邮箱或密码错误',
-    )
+    await expect(
+      store.login({ identifier: 'student@example.com', password: 'wrong' }),
+    ).rejects.toThrow('账号或密码错误')
 
     expect(store.isAuthenticated).toBe(false)
     expect(store.user).toBeNull()
@@ -63,7 +66,7 @@ describe('auth store', () => {
 
     const store = useAuthStore()
     await store.register({
-      displayName: '张三',
+      realName: '张三',
       email: 'student@example.com',
       emailCode: '123456',
       password: 'password123',
@@ -71,7 +74,7 @@ describe('auth store', () => {
     })
 
     expect(authApi.register).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'student@example.com', emailCode: '123456' }),
+      expect.objectContaining({ realName: '张三', emailCode: '123456' }),
     )
     expect(store.isAuthenticated).toBe(true)
     expect(store.accessToken).toBe('access-2')
@@ -84,7 +87,7 @@ describe('auth store', () => {
 
     await expect(
       store.register({
-        displayName: '张三',
+        realName: '张三',
         email: 'student@example.com',
         emailCode: '000000',
         password: 'password123',
@@ -144,7 +147,7 @@ describe('auth store', () => {
     authApi.logout.mockResolvedValue(true)
 
     const store = useAuthStore()
-    await store.login({ email: 'student@example.com', password: 'password123' })
+    await store.login({ identifier: 'student@example.com', password: 'password123' })
     await store.logout()
 
     expect(authApi.logout).toHaveBeenCalledOnce()

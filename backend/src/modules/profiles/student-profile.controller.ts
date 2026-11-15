@@ -64,6 +64,10 @@ export class StudentProfileController {
     @CurrentUser() authUser: AuthUserContext,
     @Query({ schema: studentProfileListQuerySchema }) query: StudentProfileListQuery,
   ) {
+    if (query.unassignedOnly === 'true') {
+      await this.assertSchoolWideScope(authUser.userId, PermissionCode.STUDENT_PROFILE_READ)
+    }
+
     const classIds = await this.resolveClassIds(
       authUser.userId,
       PermissionCode.STUDENT_PROFILE_READ,
@@ -258,6 +262,34 @@ export class StudentProfileController {
     }
 
     return [...allowed]
+  }
+
+  /**
+   * 未分班学生不属于任何班级，无法用班级范围裁剪。
+   *
+   * 因此只允许授权范围覆盖整个学校的账号查询，
+   * 否则院系/专业管理员会看到全校未分班名单。
+   */
+  private async assertSchoolWideScope(
+    actorId: string,
+    permissionCode: PermissionCode,
+  ): Promise<void> {
+    const scope = await this.scopeService.resolve(actorId, permissionCode)
+
+    if (scope.kind === 'ALL') return
+
+    if (
+      scope.kind === 'SUBTREE' &&
+      (await this.organizationService.hasSchoolNode(scope.orgUnitIds))
+    ) {
+      return
+    }
+
+    throw new ForbiddenException({
+      code: 40300,
+      data: null,
+      message: '只有全校范围的管理员可以查看未分班学生',
+    })
   }
 
   /**

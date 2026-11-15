@@ -72,7 +72,7 @@ function resolveErrorMessage(error: unknown, fallbackKey: string): { key: string
 
 const form = useForm({
   defaultValues: {
-    displayName: '',
+    realName: '',
     email: '',
     emailCode: '',
     password: '',
@@ -104,7 +104,7 @@ const form = useForm({
 
 /** 字段级惰性校验：只在用户改动过、失焦后才提示 */
 const fieldValidators = {
-  displayName: lazyValidate(registerFieldSchemas.displayName),
+  realName: lazyValidate(registerFieldSchemas.realName),
   email: lazyValidate(registerFieldSchemas.email),
   emailCode: lazyValidate(registerFieldSchemas.emailCode),
   password: lazyValidate(registerFieldSchemas.password),
@@ -198,12 +198,12 @@ async function handleSendCode(): Promise<void> {
     <!-- 表单主体 -->
     <form class="flex flex-col gap-2.5" novalidate @submit.prevent="form.handleSubmit">
       <FieldGroup class="gap-2">
-        <!-- 姓名输入框 -->
-        <form.Field name="displayName" :validators="fieldValidators.displayName">
+        <!-- 真实姓名输入框 -->
+        <form.Field name="realName" :validators="fieldValidators.realName">
           <template #default="{ field, state }">
             <Field :data-invalid="state.meta.errors.length > 0">
               <FieldLabel :for="field.name" class="sr-only">
-                {{ $t('registerForm.fullNameLabel') }}
+                {{ $t('registerForm.realNameLabel') }}
               </FieldLabel>
               <div class="relative group">
                 <div
@@ -216,7 +216,7 @@ async function handleSendCode(): Promise<void> {
                   :value="field.state.value"
                   type="text"
                   autocomplete="name"
-                  :placeholder="$t('registerForm.fullNamePlaceholder')"
+                  :placeholder="$t('registerForm.realNamePlaceholder')"
                   class="w-full h-10 pl-9 pr-3 rounded-lg bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"

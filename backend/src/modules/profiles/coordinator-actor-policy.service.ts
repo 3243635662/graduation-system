@@ -30,7 +30,6 @@ export class CoordinatorActorPolicy {
     const assignments = await this.prisma.userRole.findMany({
       where: {
         userId: actorId,
-        revokedAt: null,
         validFrom: { lte: now },
         OR: [{ validUntil: null }, { validUntil: { gt: now } }],
         scopeOrgUnitId: { not: null },

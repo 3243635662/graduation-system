@@ -85,6 +85,38 @@ export class OrganizationService {
     return { ...row, children: [] }
   }
 
+  /**
+   * 学校根节点 ID。
+   *
+   * 单学校系统只允许一个 SCHOOL 节点；用于判断某次授权是否覆盖全校，
+   * 例如「查看未分班学生」这类无法按班级范围过滤的场景。
+   */
+  async getSchoolRootId(): Promise<string | null> {
+    const root = await this.prisma.organizationUnit.findFirst({
+      where: { type: 'SCHOOL' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    })
+
+    return root?.id ?? null
+  }
+
+  /**
+   * 给定组织集合中是否包含学校级节点。
+   *
+   * 用于判断某次授权是否覆盖整个学校（例如查看未分班学生）。
+   * 不假设「全局只有一个 SCHOOL」，避免测试或迁移环境中的多根节点被误判。
+   */
+  async hasSchoolNode(ids: string[]): Promise<boolean> {
+    if (ids.length === 0) return false
+
+    const count = await this.prisma.organizationUnit.count({
+      where: { id: { in: ids }, type: 'SCHOOL' },
+    })
+
+    return count > 0
+  }
+
   /** 创建组织节点，并校验层级与父节点状态 */
   async create(input: CreateOrganizationInput, actorId: string): Promise<OrganizationTreeNode> {
     const name = input.name.trim()

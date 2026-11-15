@@ -24,6 +24,7 @@ describe('用户账号数据范围 (e2e)', () => {
 
   const orgIds: string[] = []
   const userIds: string[] = []
+  const personnelProfileIds: string[] = []
 
   let majorAdminToken: string
   let deptAdminToken: string
@@ -41,7 +42,7 @@ describe('用户账号数据范围 (e2e)', () => {
       data: {
         email: `${label}-${suffix}@example.test`,
         passwordHash: await hash(password),
-        displayName: label,
+        realName: label,
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -60,6 +61,8 @@ describe('用户账号数据范围 (e2e)', () => {
           userId: user.id,
           roleId: role.id,
           scopeOrgUnitId: scopeOrgUnitId ?? null,
+          // 组织级授权取组织节点 ID，平台级统一 GLOBAL（唯一键 uk_user_role_scope）
+          scopeKey: scopeOrgUnitId ?? 'GLOBAL',
         },
       })
     }
@@ -67,10 +70,10 @@ describe('用户账号数据范围 (e2e)', () => {
     return user.id
   }
 
-  async function login(email: string, pwd: string) {
+  async function login(identifier: string, pwd: string) {
     const response = await request(app.getHttpServer())
       .post(`${api}/auth/login`)
-      .send({ email, password: pwd })
+      .send({ identifier, password: pwd })
 
     expect([200, 201]).toContain(response.status)
 
@@ -146,6 +149,7 @@ describe('用户账号数据范围 (e2e)', () => {
         userId: expiredRoleUserId,
         roleId: expiredRole.id,
         scopeOrgUnitId: deptA,
+        scopeKey: deptA,
         validFrom: new Date('2020-01-01T00:00:00.000Z'),
         validUntil: new Date('2021-01-01T00:00:00.000Z'),
       },
@@ -155,7 +159,6 @@ describe('用户账号数据范围 (e2e)', () => {
       data: {
         userId: studentAId,
         studentNo: `UA-${suffix}`,
-        name: '学生A',
         classId: classA,
       },
     })
@@ -164,7 +167,6 @@ describe('用户账号数据范围 (e2e)', () => {
       data: {
         userId: studentBId,
         studentNo: `UB-${suffix}`,
-        name: '学生B',
         classId: classBId,
       },
     })
@@ -173,7 +175,6 @@ describe('用户账号数据范围 (e2e)', () => {
       data: {
         userId: disabledAId,
         studentNo: `UDA-${suffix}`,
-        name: '禁用学生A',
         classId: classA,
         enrollmentStatus: 'SUSPENDED',
       },
@@ -183,17 +184,27 @@ describe('用户账号数据范围 (e2e)', () => {
       data: {
         userId: disabledBId,
         studentNo: `UDB-${suffix}`,
-        name: '禁用学生B',
         classId: classBId,
         enrollmentStatus: 'SUSPENDED',
       },
     })
 
-    await prisma.teacherProfile.create({
+    // 教师身份挂在工作人员档案下：正式组织归属由 PersonnelProfile 表达
+    const personnel = await prisma.personnelProfile.create({
       data: {
         userId: teacherId,
+        employeeNo: `UE-${suffix}`,
+        primaryOrganizationUnitId: deptA,
+      },
+      select: { id: true },
+    })
+
+    personnelProfileIds.push(personnel.id)
+
+    await prisma.teacherProfile.create({
+      data: {
+        personnelProfileId: personnel.id,
         teacherNo: `UT-${suffix}`,
-        departmentId: deptA,
       },
     })
 
@@ -212,7 +223,10 @@ describe('用户账号数据范围 (e2e)', () => {
     await prisma.authSession.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.studentProfile.deleteMany({ where: { userId: { in: userIds } } })
-    await prisma.teacherProfile.deleteMany({ where: { userId: { in: userIds } } })
+    await prisma.teacherProfile.deleteMany({
+      where: { personnelProfileId: { in: personnelProfileIds } },
+    })
+    await prisma.personnelProfile.deleteMany({ where: { id: { in: personnelProfileIds } } })
     await prisma.user.deleteMany({ where: { id: { in: userIds } } })
 
     for (const id of [...orgIds].reverse()) {

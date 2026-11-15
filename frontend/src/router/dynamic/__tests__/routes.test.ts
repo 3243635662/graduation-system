@@ -36,8 +36,9 @@ function createFakeRouter(staticNames: string[] = []) {
 }
 
 describe('default menu tree', () => {
-  it('V1 菜单包含 19 个页面节点', () => {
-    expect(pageNodes).toHaveLength(19)
+  it('菜单页面节点数量与后端下发的菜单树一致', () => {
+    // 数量由 shared 的 DEFAULT_MENU_TREE 决定，菜单增删后无需再改测试
+    expect(pageNodes).toHaveLength(countPages(DEFAULT_MENU_TREE))
   })
 
   it('所有页面节点都有 path、componentKey 与 icon', () => {
@@ -136,12 +137,21 @@ describe('dynamic route safety', () => {
   })
 })
 
+/** 统计菜单树中的 PAGE 节点数量（含一级页面） */
+function countPages(nodes: MenuTreeNode[]): number {
+  return nodes.reduce(
+    (total, node) => total + (node.type === 'PAGE' ? 1 : 0) + countPages(node.children ?? []),
+    0,
+  )
+}
+
 describe('dynamic route lifecycle', () => {
   it('重建时移除旧用户的动态路由，只保留新菜单', () => {
     const { router, registered } = createFakeRouter(['auth-sign-in'])
 
     rebuildDynamicRoutes(router, DEFAULT_MENU_TREE)
-    expect(registered.size).toBe(20)
+    // 页面数量跟随后端下发的菜单树，避免菜单增删后测试失效（+1 为预置的静态路由）
+    expect(registered.size).toBe(countPages(DEFAULT_MENU_TREE) + 1)
 
     const studentTree: MenuTreeNode[] = [
       {
@@ -191,16 +201,14 @@ describe('menu tree dedupe', () => {
 })
 
 describe('sidebar navigation', () => {
-  it('三级菜单被扁平化为 7 个分组', () => {
+  it('两级菜单被扁平化为 5 个分组', () => {
     const groups = toNavGroups(DEFAULT_MENU_TREE)
 
     expect(groups.map((group) => group.title)).toEqual([
       '工作台',
-      '选题管理',
-      '过程管理',
-      '论文与答辩',
-      'AI 助手',
-      '组织与人员管理',
+      '用户与人员',
+      '组织架构',
+      '班级事务',
       '系统管理',
     ])
   })

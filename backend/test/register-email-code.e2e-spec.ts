@@ -161,7 +161,7 @@ describe('邮箱验证码注册 (e2e)', () => {
     await request(app.getHttpServer())
       .post(`${apiUrl}/register`)
       .send({
-        displayName: '过期验证码',
+        realName: '过期验证码',
         email,
         emailCode,
         password: 'password123',
@@ -182,7 +182,7 @@ describe('邮箱验证码注册 (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '错误次数',
+          realName: '错误次数',
           email,
           emailCode: wrongCode,
           password: 'password123',
@@ -201,7 +201,7 @@ describe('邮箱验证码注册 (e2e)', () => {
     await request(app.getHttpServer())
       .post(`${apiUrl}/register`)
       .send({
-        displayName: '错误次数',
+        realName: '错误次数',
         email,
         emailCode,
         password: 'password123',
@@ -220,7 +220,7 @@ describe('邮箱验证码注册 (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post(`${apiUrl}/register`)
       .send({
-        displayName: 'Cookie 契约',
+        realName: 'Cookie 契约',
         email,
         emailCode,
         password: 'password123',
@@ -249,7 +249,7 @@ describe('邮箱验证码注册 (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post(`${apiUrl}/register`)
       .send({
-        displayName: '学生角色',
+        realName: '学生角色',
         email,
         emailCode,
         password: 'password123',
@@ -287,7 +287,7 @@ describe('邮箱验证码注册 (e2e)', () => {
     await request(brokenApp.getHttpServer())
       .post(`${apiUrl}/register`)
       .send({
-        displayName: '无 Redis',
+        realName: '无 Redis',
         email: 'redis-down-register@example.com',
         emailCode: '123456',
         password: 'password123',

@@ -16,6 +16,9 @@ import { PrismaService } from '../src/prisma/prisma.service.js'
  *
  * 使用真实 Nest 应用、真实 Prisma/MySQL、真实 Redis 与真实认证，
  * 所有测试数据带唯一后缀并在结束时清理；不对既有用户与组织做任何写入。
+ *
+ * 新契约：撤销 = 写 user_role_history 后删除 user_roles 当前行；
+ * 学生类资格只有 STUDENT_SELF（只能协管本人当前班级）。
  */
 describe('协管员 HTTP E2E（真实数据库）', () => {
   const suffix = `${Date.now()}`
@@ -45,7 +48,7 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
       data: {
         email: `${emailPrefix}-${suffix}@example.test`,
         passwordHash: await hash(password),
-        displayName: `${emailPrefix}-${suffix}`,
+        realName: `${emailPrefix}-${suffix}`,
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -72,6 +75,7 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
         userId: user.id,
         roleId: role.id,
         scopeOrgUnitId: scopeOrgUnitId ?? null,
+        scopeKey: scopeOrgUnitId ?? 'GLOBAL',
         assignedById: user.id,
         createdById: user.id,
       },
@@ -80,13 +84,15 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
     return user.id
   }
 
-  async function login(email: string, loginPassword: string = password) {
+  async function login(identifier: string, loginPassword: string = password) {
     const response = await request(app.getHttpServer())
       .post(`${api}/auth/login`)
-      .send({ email, password: loginPassword })
+      .send({ identifier, password: loginPassword })
 
     if (response.status !== 200 && response.status !== 201) {
-      throw new Error(`登录失败(${email}) ${response.status}: ${JSON.stringify(response.body)}`)
+      throw new Error(
+        `登录失败(${identifier}) ${response.status}: ${JSON.stringify(response.body)}`,
+      )
     }
 
     return response.body.data.accessToken as string
@@ -177,6 +183,11 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
     await createUser('dept-admin', 'DEPARTMENT_ADMIN', deptAId)
     studentId = await createUser('student', 'STUDENT')
 
+    // 学生档案落在 classA：使其具备 STUDENT_SELF 资格（只能协管本班）
+    await prisma.studentProfile.create({
+      data: { userId: studentId, studentNo: `H-${suffix}-1`, classId: classAId },
+    })
+
     const schoolAdmin = await prisma.user.findFirstOrThrow({
       where: { email: process.env['SUPER_ADMIN_EMAIL'], deletedAt: null },
       select: { email: true },
@@ -189,11 +200,13 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
 
   afterAll(async () => {
     await prisma.authSession.deleteMany({ where: { userId: { in: userIds } } })
+    await prisma.userRoleHistory.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.coordinatorQualificationOverride.deleteMany({
       where: { classId: { in: [classAId] } },
     })
     await prisma.counselorClassAssignment.deleteMany({ where: { classId: classAId } })
+    await prisma.studentProfile.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.user.deleteMany({ where: { id: { in: userIds } } })
 
     for (const orgId of [...orgIds].reverse()) {
@@ -265,10 +278,13 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
       .set(auth(schoolToken))
       .expect(200)
 
-    expect(eligibility.body.data.bases).toContain('SCHOOL_OVERRIDE')
+    // 学生同时具备本人班级的学生资格与特殊覆盖
+    expect(eligibility.body.data.bases).toEqual(
+      expect.arrayContaining(['STUDENT_SELF', 'SCHOOL_OVERRIDE']),
+    )
   })
 
-  it('覆盖自然到期后资格失效，旧 UserRole 仍保留待清理', async () => {
+  it('覆盖自然到期后资格不再来自覆盖，旧 UserRole 仍保留待清理', async () => {
     const override = await prisma.coordinatorQualificationOverride.findFirstOrThrow({
       where: { userId: studentId, classId: classAId, revokedAt: null },
       select: { id: true },
@@ -286,23 +302,29 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
       .set(auth(schoolToken))
       .expect(200)
 
-    expect(eligibility.body.data.eligible).toBe(false)
+    // 仅剩学生本人资格，覆盖已失效
+    expect(eligibility.body.data.bases).toEqual(['STUDENT_SELF'])
 
     const activeRole = await prisma.userRole.findFirst({
       where: {
         userId: studentId,
-        revokedAt: null,
         role: { code: 'CLASS_COORDINATOR' },
+        scopeOrgUnitId: classAId,
       },
       select: { id: true },
     })
 
+    // 自然到期不会写数据库：当前授权行仍在，由运行时资格过滤兜底
     expect(activeRole).not.toBeNull()
   })
 
-  it('新增其他资格时终止旧身份；重新分配才产生新的 UserRole', async () => {
+  it('新增辅导员资格不重复写入授权；撤销后重新分配才产生新的 UserRole', async () => {
     const stale = await prisma.userRole.findFirstOrThrow({
-      where: { userId: studentId, revokedAt: null, role: { code: 'CLASS_COORDINATOR' } },
+      where: {
+        userId: studentId,
+        role: { code: 'CLASS_COORDINATOR' },
+        scopeOrgUnitId: classAId,
+      },
       select: { id: true },
     })
 
@@ -314,23 +336,43 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
 
     expect(counselor.body.data.userId).toBe(studentId)
 
-    const revoked = await prisma.userRole.findUniqueOrThrow({
-      where: { id: stale.id },
-      select: { revokedAt: true, revocationReason: true },
+    // 资格来源增加，但正式授权仍只有一条（不会因新增资格重复创建）
+    const eligibility = await request(app.getHttpServer())
+      .get(`${api}/coordinator/eligibility`)
+      .query({ userId: studentId, classId: classAId })
+      .set(auth(schoolToken))
+      .expect(200)
+
+    expect(eligibility.body.data.bases).toEqual(
+      expect.arrayContaining(['STUDENT_SELF', 'COUNSELOR']),
+    )
+
+    expect(
+      await prisma.userRole.count({
+        where: {
+          userId: studentId,
+          role: { code: 'CLASS_COORDINATOR' },
+          scopeOrgUnitId: classAId,
+        },
+      }),
+    ).toBe(1)
+
+    // 显式撤销 → 当前行删除 + MANUAL 历史
+    await request(app.getHttpServer())
+      .delete(`${api}/role-assignments/${stale.id}`)
+      .set(auth(schoolToken))
+      .expect(200)
+
+    expect(await prisma.userRole.count({ where: { id: stale.id } })).toBe(0)
+
+    const history = await prisma.userRoleHistory.findFirstOrThrow({
+      where: { userRoleId: stale.id },
+      select: { revocationReason: true },
     })
 
-    expect(revoked.revokedAt).not.toBeNull()
-    expect(revoked.revocationReason).toBe('QUALIFICATION_LOST')
+    expect(history.revocationReason).toBe('MANUAL')
 
-    // 旧分配不会自动恢复：复审仍是撤销状态
-    const recheck = await prisma.userRole.findUniqueOrThrow({
-      where: { id: stale.id },
-      select: { revokedAt: true },
-    })
-
-    expect(recheck.revokedAt).not.toBeNull()
-
-    // 显式重新分配才产生新的有效记录
+    // 重新分配才会产生新的授权行
     const newAssignment = await request(app.getHttpServer())
       .post(`${api}/role-assignments`)
       .set(auth(schoolToken))
@@ -344,13 +386,12 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
     expect(newAssignment.body.data.id).not.toBe(stale.id)
   })
 
-  it('撤销覆盖后，资格与菜单同步收缩', async () => {
+  it('撤销覆盖与辅导员后，资格与授权同步收缩', async () => {
     const override = await prisma.coordinatorQualificationOverride.findFirstOrThrow({
       where: { userId: studentId, classId: classAId, revokedAt: null },
       select: { id: true },
     })
 
-    // 先撤销辅导员，确保仅剩覆盖授权
     const counselor = await prisma.counselorClassAssignment.findFirstOrThrow({
       where: { userId: studentId, classId: classAId, revokedAt: null },
       select: { id: true },
@@ -372,13 +413,21 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
       .set(auth(schoolToken))
       .expect(200)
 
-    expect(eligibility.body.data.eligible).toBe(false)
-
-    const active = await prisma.userRole.count({
-      where: { userId: studentId, revokedAt: null, role: { code: 'CLASS_COORDINATOR' } },
+    // 学生本人在籍于该班，仍保留 STUDENT_SELF 资格
+    expect(eligibility.body.data).toMatchObject({
+      eligible: true,
+      bases: ['STUDENT_SELF'],
     })
 
-    expect(active).toBe(0)
+    const active = await prisma.userRole.count({
+      where: {
+        userId: studentId,
+        role: { code: 'CLASS_COORDINATOR' },
+        scopeOrgUnitId: classAId,
+      },
+    })
+
+    expect(active).toBe(1)
   })
 
   it('学生个人菜单不因协管员资格变化而丢失', async () => {
@@ -387,6 +436,9 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
       .set(auth(studentToken))
       .expect(200)
 
-    expect(JSON.stringify(menus.body.data)).toContain('MY_TOPIC')
+    const serialized = JSON.stringify(menus.body.data)
+
+    expect(serialized).toContain('MY_PROFILE')
+    expect(serialized).toContain('DASHBOARD')
   })
 })

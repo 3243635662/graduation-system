@@ -9,7 +9,9 @@ export interface FakeUser {
   id: string
   email: string
   passwordHash: string
-  displayName: string
+  realName: string
+  phone: string | null
+  avatarUrl: string | null
   status: 'ACTIVE' | 'DISABLED' | 'LOCKED'
   lastLoginAt: Date | null
 }
@@ -34,7 +36,17 @@ export const STUDENT_ROLE = {
 export function createInMemoryPrisma() {
   const users: FakeUser[] = []
   const sessions: FakeSession[] = []
-  const userRoles: Array<{ userId: string; roleId: string }> = []
+  const userRoles: Array<{ userId: string; roleId: string; scopeKey: string }> = []
+  /** 登录标识解析：学号 → 账号 */
+  const studentProfiles: Array<{ userId: string; studentNo: string }> = []
+  /** 登录标识解析：教师工号 / 工作人员工号 → 账号 */
+  const teacherProfiles: Array<{ personnelProfileId: string; teacherNo: string }> = []
+  const personnelProfiles: Array<{
+    id: string
+    userId: string
+    employeeNo: string | null
+  }> = []
+
   let sequence = 0
 
   const nextId = (prefix: string) => `${prefix}-${++sequence}`
@@ -52,8 +64,7 @@ export function createInMemoryPrisma() {
           scopeOrgUnitId: null,
           validFrom: new Date(0),
           validUntil: null,
-          revokedAt: null,
-          role: { ...role, status: 'ACTIVE' as const },
+          role: { ...role, status: 'ACTIVE' as const, rolePermissions: [] },
           scopeOrgUnit: null,
         })),
     }
@@ -125,9 +136,40 @@ export function createInMemoryPrisma() {
     },
 
     userRole: {
-      async create({ data }: { data: { userId: string; roleId: string } }) {
+      async create({ data }: { data: { userId: string; roleId: string; scopeKey: string } }) {
         userRoles.push(data)
         return data
+      },
+    },
+
+    /** 登录标识解析：学号 */
+    studentProfile: {
+      async findUnique({ where }: { where: { studentNo: string } }) {
+        const profile = studentProfiles.find((item) => item.studentNo === where.studentNo)
+
+        return profile ? { userId: profile.userId } : null
+      },
+    },
+
+    /** 登录标识解析：教师工号（工号挂在 TeacherProfile 上） */
+    teacherProfile: {
+      async findUnique({ where }: { where: { teacherNo: string } }) {
+        const teacher = teacherProfiles.find((item) => item.teacherNo === where.teacherNo)
+
+        if (!teacher) return null
+
+        const personnel = personnelProfiles.find((item) => item.id === teacher.personnelProfileId)
+
+        return personnel ? { personnelProfile: { userId: personnel.userId } } : null
+      },
+    },
+
+    /** 登录标识解析：工作人员工号 */
+    personnelProfile: {
+      async findUnique({ where }: { where: { employeeNo: string } }) {
+        const personnel = personnelProfiles.find((item) => item.employeeNo === where.employeeNo)
+
+        return personnel ? { userId: personnel.userId } : null
       },
     },
 
@@ -178,5 +220,5 @@ export function createInMemoryPrisma() {
     },
   }
 
-  return { prisma, users, sessions }
+  return { prisma, users, sessions, userRoles, studentProfiles, teacherProfiles, personnelProfiles }
 }

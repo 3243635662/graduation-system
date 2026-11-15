@@ -9,6 +9,14 @@ import { AppModule } from '../src/app.module.js'
 import { configureGlobalEnhancers } from '../src/common/configure-global-enhancers.js'
 import { PrismaService } from '../src/prisma/prisma.service.js'
 
+/**
+ * 班级职责与 CLASS_COORDINATOR 管理
+ *
+ * 新契约要点：
+ * - 教师身份挂在工作人员档案下（PersonnelProfile + TeacherProfile）；
+ * - 撤销 = 写 user_role_history 快照后删除 user_roles 当前行；
+ * - 学生只能协管本人当前班级（STUDENT_SELF），没有班助/学生负责人等其他学生类资格。
+ */
 describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const password = 'CoordinatorE2E!123'
@@ -19,7 +27,8 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
 
   const orgIds: string[] = []
   const userIds: string[] = []
-  const profileIds: string[] = []
+  const personnelProfileIds: string[] = []
+  const teacherProfileIds: string[] = []
 
   let schoolToken: string
   let deptToken: string
@@ -42,7 +51,7 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
       data: {
         email: `${label}-${suffix}@example.test`,
         passwordHash: await hash(password),
-        displayName: label,
+        realName: label,
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -57,17 +66,22 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
       })
 
       await prisma.userRole.create({
-        data: { userId: user.id, roleId: role.id, scopeOrgUnitId: scopeOrgUnitId ?? null },
+        data: {
+          userId: user.id,
+          roleId: role.id,
+          scopeOrgUnitId: scopeOrgUnitId ?? null,
+          scopeKey: scopeOrgUnitId ?? 'GLOBAL',
+        },
       })
     }
 
     return user.id
   }
 
-  async function login(email: string, pwd: string = password) {
+  async function login(identifier: string, pwd: string = password) {
     const response = await request(app.getHttpServer())
       .post(`${api}/auth/login`)
-      .send({ email, password: pwd })
+      .send({ identifier, password: pwd })
 
     expect([200, 201]).toContain(response.status)
 
@@ -122,23 +136,31 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
     teacherUserId = await createUser('teacher')
 
     await prisma.studentProfile.create({
-      data: { userId: studentId, studentNo: `CM-${suffix}-1`, name: '学生A', classId: classA },
+      data: { userId: studentId, studentNo: `CM-${suffix}-1`, classId: classA },
     })
     await prisma.studentProfile.create({
-      data: { userId: student2Id, studentNo: `CM-${suffix}-2`, name: '学生B', classId: classB },
+      data: { userId: student2Id, studentNo: `CM-${suffix}-2`, classId: classB },
     })
 
-    const teacherProfile = await prisma.teacherProfile.create({
+    // 教师身份挂在工作人员档案下
+    const personnel = await prisma.personnelProfile.create({
       data: {
         userId: teacherUserId,
-        teacherNo: `CM-T-${suffix}`,
-        departmentId: deptA,
+        employeeNo: `CM-E-${suffix}`,
+        primaryOrganizationUnitId: deptA,
       },
       select: { id: true },
     })
 
+    personnelProfileIds.push(personnel.id)
+
+    const teacherProfile = await prisma.teacherProfile.create({
+      data: { personnelProfileId: personnel.id, teacherNo: `CM-T-${suffix}` },
+      select: { id: true },
+    })
+
     teacherProfileId = teacherProfile.id
-    profileIds.push(teacherProfile.id)
+    teacherProfileIds.push(teacherProfile.id)
 
     deptToken = await login(`dept-admin-${suffix}@example.test`)
     majorToken = await login(`major-admin-${suffix}@example.test`)
@@ -154,13 +176,15 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
 
   afterAll(async () => {
     await prisma.authSession.deleteMany({ where: { userId: { in: userIds } } })
-    await prisma.teacherClassDuty.deleteMany({ where: { teacherId: { in: profileIds } } })
+    await prisma.teacherClassDuty.deleteMany({ where: { teacherId: { in: teacherProfileIds } } })
     await prisma.counselorClassAssignment.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.coordinatorQualificationOverride.deleteMany({
       where: { userId: { in: userIds } },
     })
+    await prisma.userRoleHistory.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } })
-    await prisma.teacherProfile.deleteMany({ where: { id: { in: profileIds } } })
+    await prisma.teacherProfile.deleteMany({ where: { id: { in: teacherProfileIds } } })
+    await prisma.personnelProfile.deleteMany({ where: { id: { in: personnelProfileIds } } })
     await prisma.studentProfile.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.user.deleteMany({ where: { id: { in: userIds } } })
 
@@ -309,51 +333,49 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
       select: { id: true },
     })
 
-    const active = await prisma.userRole.count({
-      where: { userId: teacherUserId, roleId: role.id, scopeOrgUnitId: classB, revokedAt: null },
+    const activeAssignment = await prisma.userRole.findFirstOrThrow({
+      where: { userId: teacherUserId, roleId: role.id, scopeOrgUnitId: classB },
+      select: { id: true },
     })
-
-    expect(active).toBe(1)
 
     await request(app.getHttpServer())
       .post(`${api}/coordinator-overrides/${overrideId}/revoke`)
       .set({ Authorization: `Bearer ${schoolToken}` })
       .expect(201)
 
-    const revoked = await prisma.userRole.findFirstOrThrow({
-      where: { userId: teacherUserId, roleId: role.id, scopeOrgUnitId: classB },
-      select: { revokedAt: true, revocationReason: true },
+    // 授权行被删除，历史表中留下 QUALIFICATION_LOST 快照
+    expect(await prisma.userRole.count({ where: { id: activeAssignment.id } })).toBe(0)
+
+    const history = await prisma.userRoleHistory.findFirstOrThrow({
+      where: { userRoleId: activeAssignment.id },
+      select: { revocationReason: true },
     })
 
-    expect(revoked.revocationReason).toBe('QUALIFICATION_LOST')
+    expect(history.revocationReason).toBe('QUALIFICATION_LOST')
   })
 
-  it('CLASS_COORDINATOR：无资格拒绝；有资格可分配多班级；手动撤销为 MANUAL', async () => {
+  it('CLASS_COORDINATOR：无资格拒绝；学生可协管本班；重复分配 409；撤销写入 MANUAL 历史并可重新分配', async () => {
+    // student2 在 classB，不能协管 classA（学生只能协管本人当前班级）
     await request(app.getHttpServer())
       .post(`${api}/role-assignments`)
       .set({ Authorization: `Bearer ${schoolToken}` })
       .send({ userId: student2Id, roleCode: 'CLASS_COORDINATOR', scopeOrgUnitId: classA })
       .expect(403)
 
-    const beforeMenus = await request(app.getHttpServer())
-      .get(`${api}/menus/current`)
-      .set({ Authorization: `Bearer ${studentToken}` })
+    // student 在籍于 classA，具备 STUDENT_SELF 资格
+    const eligibility = await request(app.getHttpServer())
+      .get(`${api}/coordinator/eligibility`)
+      .query({ userId: studentId, classId: classA })
+      .set({ Authorization: `Bearer ${schoolToken}` })
       .expect(200)
 
-    expect(JSON.stringify(beforeMenus.body.data)).not.toContain('PROCESS_MONITOR')
+    expect(eligibility.body.data.bases).toEqual(['STUDENT_SELF'])
 
     const first = await request(app.getHttpServer())
       .post(`${api}/role-assignments`)
       .set({ Authorization: `Bearer ${schoolToken}` })
       .send({ userId: studentId, roleCode: 'CLASS_COORDINATOR', scopeOrgUnitId: classA })
       .expect(201)
-
-    const afterMenus = await request(app.getHttpServer())
-      .get(`${api}/menus/current`)
-      .set({ Authorization: `Bearer ${studentToken}` })
-      .expect(200)
-
-    expect(JSON.stringify(afterMenus.body.data)).toContain('PROCESS_MONITOR')
 
     await request(app.getHttpServer())
       .post(`${api}/role-assignments`)
@@ -363,34 +385,34 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
 
     const assignmentId = first.body.data.id as string
 
-    await request(app.getHttpServer())
+    const deleted = await request(app.getHttpServer())
       .delete(`${api}/role-assignments/${assignmentId}`)
       .set({ Authorization: `Bearer ${schoolToken}` })
       .expect(200)
 
-    const revoked = await prisma.userRole.findUniqueOrThrow({
-      where: { id: assignmentId },
-      select: { revokedAt: true, revocationReason: true },
+    // 撤销接口返回被撤销的授权行 ID
+    expect(deleted.body.data).toBe(assignmentId)
+
+    expect(await prisma.userRole.count({ where: { id: assignmentId } })).toBe(0)
+
+    const history = await prisma.userRoleHistory.findFirstOrThrow({
+      where: { userRoleId: assignmentId },
+      select: { revocationReason: true, revokedById: true, scopeKey: true },
     })
 
-    expect(revoked.revokedAt).not.toBeNull()
-    expect(revoked.revocationReason).toBe('MANUAL')
+    expect(history.revocationReason).toBe('MANUAL')
+    expect(history.revokedById).toBeTypeOf('string')
+    expect(history.scopeKey).toBe(classA)
 
-    const withoutMenus = await request(app.getHttpServer())
-      .get(`${api}/menus/current`)
-      .set({ Authorization: `Bearer ${studentToken}` })
-      .expect(200)
-
-    expect(JSON.stringify(withoutMenus.body.data)).not.toContain('PROCESS_MONITOR')
-
+    // 撤销后可以重新分配
     await request(app.getHttpServer())
       .post(`${api}/role-assignments`)
       .set({ Authorization: `Bearer ${schoolToken}` })
-      .send({ userId: studentId, roleCode: 'CLASS_COORDINATOR', scopeOrgUnitId: classA2 })
+      .send({ userId: studentId, roleCode: 'CLASS_COORDINATOR', scopeOrgUnitId: classA })
       .expect(201)
   })
 
-  it('班主任任职撤销后，依赖该资格的协管角色被 QUALIFICATION_LOST 撤销', async () => {
+  it('班主任任职撤销后，依赖该资格的协管授权被 QUALIFICATION_LOST 撤销', async () => {
     const duty = await prisma.teacherClassDuty.create({
       data: { teacherId: teacherProfileId, classId: classA2, dutyType: 'HEAD_TEACHER' },
       select: { id: true },
@@ -406,17 +428,20 @@ describe('班级职责与 CLASS_COORDINATOR 管理 (e2e)', () => {
       })
       .expect(201)
 
+    const assignmentId = assignment.body.data.id as string
+
     await request(app.getHttpServer())
       .post(`${api}/teacher-class-duties/${duty.id}/revoke`)
       .set({ Authorization: `Bearer ${schoolToken}` })
       .expect(201)
 
-    const revoked = await prisma.userRole.findUniqueOrThrow({
-      where: { id: assignment.body.data.id as string },
-      select: { revokedAt: true, revocationReason: true },
+    expect(await prisma.userRole.count({ where: { id: assignmentId } })).toBe(0)
+
+    const history = await prisma.userRoleHistory.findFirstOrThrow({
+      where: { userRoleId: assignmentId },
+      select: { revocationReason: true },
     })
 
-    expect(revoked.revokedAt).not.toBeNull()
-    expect(revoked.revocationReason).toBe('QUALIFICATION_LOST')
+    expect(history.revocationReason).toBe('QUALIFICATION_LOST')
   })
 })

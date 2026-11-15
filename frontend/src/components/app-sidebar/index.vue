@@ -30,7 +30,7 @@ const { navGroups } = storeToRefs(menuStore)
     </SidebarContent>
 
     <SidebarFooter class="border-t h-14 py-1 group-data-[collapsible=icon]:justify-center">
-      <NavFooter :user="sidebarData.user" />
+      <NavFooter />
     </SidebarFooter>
 
     <SidebarRail />

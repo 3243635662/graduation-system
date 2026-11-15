@@ -9,7 +9,7 @@ import { useFieldErrors } from '@/composables/use-field-errors'
 import { ApiError } from '@/lib/api-response'
 import { loginFieldSchemas, loginSchema, type LoginFormValues } from '@/validators/auth.schema'
 import { lazyValidate } from '@/validators/lazy-validate'
-import { ArrowRightIcon, EyeIcon, EyeOffIcon, LockIcon, MailIcon } from '@lucide/vue'
+import { ArrowRightIcon, EyeIcon, EyeOffIcon, IdCardIcon, LockIcon } from '@lucide/vue'
 import { useForm } from '@tanstack/vue-form'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -37,12 +37,12 @@ function resolveErrorMessage(error: unknown, fallback: string): string {
 
 /** 字段级惰性校验：只在用户改动过、失焦后才提示 */
 const fieldValidators = {
-  email: lazyValidate(loginFieldSchemas.email),
+  identifier: lazyValidate(loginFieldSchemas.identifier),
   password: lazyValidate(loginFieldSchemas.password),
 }
 
 const form = useForm({
-  defaultValues: { email: '', password: '' } satisfies LoginFormValues,
+  defaultValues: { identifier: '', password: '' } satisfies LoginFormValues,
   // 整表只在校验提交时跑一次，避免单个输入框失焦就把所有字段的报错点亮
   validators: {
     onSubmit: loginSchema,
@@ -134,25 +134,25 @@ const form = useForm({
     <!-- 表单主体 -->
     <form class="flex flex-col gap-3" novalidate @submit.prevent="form.handleSubmit">
       <FieldGroup class="gap-3">
-        <!-- 邮箱输入框 -->
-        <form.Field name="email" :validators="fieldValidators.email">
+        <!-- 登录标识：邮箱 / 学号 / 工号 -->
+        <form.Field name="identifier" :validators="fieldValidators.identifier">
           <template #default="{ field, state }">
             <Field :data-invalid="state.meta.errors.length > 0">
               <FieldLabel :for="field.name" class="sr-only">
-                {{ $t('loginForm.emailLabel') }}
+                {{ $t('loginForm.identifierLabel') }}
               </FieldLabel>
               <div class="relative group">
                 <div
                   class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-primary transition-colors"
                 >
-                  <MailIcon class="w-4 h-4" />
+                  <IdCardIcon class="w-4 h-4" />
                 </div>
                 <input
                   :id="field.name"
                   :value="field.state.value"
-                  type="email"
-                  autocomplete="email"
-                  :placeholder="$t('loginForm.emailPlaceholder')"
+                  type="text"
+                  autocomplete="username"
+                  :placeholder="$t('loginForm.identifierPlaceholder')"
                   class="w-full h-11 pl-10 pr-3.5 rounded-xl bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"

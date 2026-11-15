@@ -24,7 +24,7 @@ const ROW = {
   reason: '专业内调整',
   requestId: 'req-1',
   createdAt: new Date('2026-11-15T10:00:00.000Z'),
-  actor: { displayName: '管理员' },
+  actor: { realName: '管理员' },
 }
 
 const baseQuery: AuditLogListQuery = {

@@ -43,7 +43,7 @@ describe('Auth (e2e)', () => {
 
   const apiUrl = `/${API_PREFIX}/auth`
   const student = {
-    displayName: '测试学生',
+    realName: '测试学生',
     email: 'e2e-student@example.com',
     password: 'password123',
     confirmPassword: 'password123',
@@ -103,7 +103,9 @@ describe('Auth (e2e)', () => {
       id: 'user-disabled',
       email: 'disabled@example.com',
       passwordHash: await argon2.hash('password123', { type: argon2.argon2id }),
-      displayName: '禁用用户',
+      realName: '禁用用户',
+      phone: null,
+      avatarUrl: null,
       status: 'DISABLED',
       lastLoginAt: null,
     })
@@ -154,7 +156,7 @@ describe('Auth (e2e)', () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '缺验证码',
+          realName: '缺验证码',
           email: 'no-code@example.com',
           password: 'password123',
           confirmPassword: 'password123',
@@ -173,7 +175,7 @@ describe('Auth (e2e)', () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '未验证',
+          realName: '未验证',
           email: 'never-requested@example.com',
           emailCode: '123456',
           password: 'password123',
@@ -193,7 +195,7 @@ describe('Auth (e2e)', () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '错误验证码',
+          realName: '错误验证码',
           email,
           emailCode: wrongCode,
           password: 'password123',
@@ -229,7 +231,7 @@ describe('Auth (e2e)', () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '重复使用',
+          realName: '重复使用',
           email,
           emailCode,
           password: 'password123',
@@ -240,7 +242,7 @@ describe('Auth (e2e)', () => {
       const reused = await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '重复使用',
+          realName: '重复使用',
           email,
           emailCode,
           password: 'password123',
@@ -256,7 +258,7 @@ describe('Auth (e2e)', () => {
       const emailCode = await requestRegisterCode(email)
 
       const payload = {
-        displayName: '并发注册',
+        realName: '并发注册',
         email,
         emailCode,
         password: 'password123',
@@ -305,7 +307,7 @@ describe('Auth (e2e)', () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: 'a',
+          realName: 'a',
           email: 'not-an-email',
           emailCode: '12ab',
           password: 'short',
@@ -319,7 +321,7 @@ describe('Auth (e2e)', () => {
 
           expect(paths).toEqual(
             expect.arrayContaining([
-              'displayName',
+              'realName',
               'email',
               'emailCode',
               'password',
@@ -401,7 +403,7 @@ describe('Auth (e2e)', () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/register`)
         .send({
-          displayName: '无验证码可用',
+          realName: '无验证码可用',
           email,
           emailCode: '123456',
           password: 'password123',
@@ -418,7 +420,7 @@ describe('Auth (e2e)', () => {
     it('登录成功后返回用户信息与 Access Token', async () => {
       const response = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       expect(response.body.code).toBe(0)
@@ -429,28 +431,54 @@ describe('Auth (e2e)', () => {
     it('密码错误返回统一的 401', async () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: 'wrong-password' })
+        .send({ identifier: student.email, password: 'wrong-password' })
         .expect(401)
         .expect(({ body }) => {
           expect(body.code).toBe(40100)
-          expect(body.message).toBe('邮箱或密码错误')
+          expect(body.message).toBe('账号或密码错误')
         })
     })
 
     it('被禁用用户无法登录', async () => {
       await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: 'disabled@example.com', password: 'password123' })
+        .send({ identifier: 'disabled@example.com', password: 'password123' })
         .expect(403)
         .expect(({ body }) => {
           expect(body.code).toBe(40300)
         })
     })
 
+    it('非邮箱标识按学号登录（学生使用学号作为登录名）', async () => {
+      const studentNo = 'E2E2024001'
+
+      prismaFake.studentProfiles.push({
+        userId: prismaFake.users.find((user) => user.email === student.email)!.id,
+        studentNo,
+      })
+
+      const response = await request(app.getHttpServer())
+        .post(`${apiUrl}/login`)
+        .send({ identifier: studentNo, password: student.password })
+        .expect(200)
+
+      expect(response.body.data.user.email).toBe(student.email)
+      expect(response.body.data.accessToken).toBeTruthy()
+
+      // 不存在的学号与密码错误返回同一错误，避免枚举学号
+      await request(app.getHttpServer())
+        .post(`${apiUrl}/login`)
+        .send({ identifier: 'NOT-EXIST-2024', password: student.password })
+        .expect(401)
+        .expect(({ body }) => {
+          expect(body.message).toBe('账号或密码错误')
+        })
+    })
+
     it('携带 Access Token 可以获取当前用户', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const accessToken = loginResponse.body.data.accessToken as string
@@ -477,7 +505,7 @@ describe('Auth (e2e)', () => {
     it('使用 Refresh Cookie 刷新 Access Token 并轮换令牌', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const cookie = extractRefreshCookie(loginResponse)
@@ -497,7 +525,7 @@ describe('Auth (e2e)', () => {
     it('两个标签页并发刷新都能成功，不会误撤销会话', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const cookie = extractRefreshCookie(loginResponse)
@@ -524,7 +552,7 @@ describe('Auth (e2e)', () => {
     it('refresh 接口拒绝非白名单来源', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const cookie = extractRefreshCookie(loginResponse)
@@ -542,7 +570,7 @@ describe('Auth (e2e)', () => {
     it('refresh 接口放行白名单来源', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const cookie = extractRefreshCookie(loginResponse)
@@ -566,7 +594,7 @@ describe('Auth (e2e)', () => {
     it('退出登录后旧的 Refresh Token 不可再用', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const cookie = extractRefreshCookie(loginResponse)
@@ -585,7 +613,7 @@ describe('Auth (e2e)', () => {
     it('无 Refresh Cookie 时，退出登录仍能撤销当前 Access Token', async () => {
       const loginResponse = await request(app.getHttpServer())
         .post(`${apiUrl}/login`)
-        .send({ email: student.email, password: student.password })
+        .send({ identifier: student.email, password: student.password })
         .expect(200)
 
       const accessToken = loginResponse.body.data.accessToken as string

@@ -1,7 +1,8 @@
 import { setAccessToken } from '@/lib/access-token'
 import { onSessionRefreshed } from '@/lib/auth-events'
 import * as authApi from '@/services/api/auth.api'
-import type { AuthUser, LoginInput, RegisterInput } from '@graduation/shared'
+import * as usersApi from '@/services/api/users.api'
+import type { AuthUser, LoginInput, RegisterInput, UpdateMyProfileInput } from '@graduation/shared'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
@@ -70,6 +71,19 @@ export const useAuthStore = defineStore('auth', () => {
     return currentUser
   }
 
+  /**
+   * 修改本人资料
+   *
+   * 后端返回最新的 AuthUser，这里直接替换 Store 中的用户，
+   * 侧边栏头像与姓名无需额外刷新即可同步。
+   */
+  async function updateProfile(input: UpdateMyProfileInput): Promise<AuthUser> {
+    const nextUser = await usersApi.updateMyProfile(input)
+    user.value = nextUser
+
+    return nextUser
+  }
+
   async function runInitialize(): Promise<void> {
     isInitializing.value = true
 
@@ -122,6 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     fetchMe,
+    updateProfile,
     initialize,
   }
 })

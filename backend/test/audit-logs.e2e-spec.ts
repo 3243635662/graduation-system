@@ -50,7 +50,7 @@ describe('审计日志 API (e2e)', () => {
       data: {
         email: `${label}-${suffix}@example.test`,
         passwordHash: await hash(password),
-        displayName: label,
+        realName: label,
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -60,17 +60,22 @@ describe('审计日志 API (e2e)', () => {
 
     if (roleId) {
       await prisma.userRole.create({
-        data: { userId: user.id, roleId, scopeOrgUnitId: scopeOrgUnitId ?? null },
+        data: {
+          userId: user.id,
+          roleId,
+          scopeOrgUnitId: scopeOrgUnitId ?? null,
+          scopeKey: scopeOrgUnitId ?? 'GLOBAL',
+        },
       })
     }
 
     return user.id
   }
 
-  async function login(email: string, pwd: string) {
+  async function login(identifier: string, pwd: string) {
     const response = await request(app.getHttpServer())
       .post(`${api}/auth/login`)
-      .send({ email, password: pwd })
+      .send({ identifier, password: pwd })
 
     expect([200, 201]).toContain(response.status)
 
@@ -93,9 +98,19 @@ describe('审计日志 API (e2e)', () => {
     return row.id
   }
 
-  async function createProfile(name: string, classId: string) {
+  /**
+   * 学生档案必须绑定已存在的账号：这里为每个被测档案单独建一个账号，
+   * 姓名统一取 User.realName（档案不再保存名字）。
+   */
+  async function createProfile(label: string, classId: string) {
+    const studentUserId = await createUser(`${label}-owner`)
+
     const row = await prisma.studentProfile.create({
-      data: { studentNo: `AUD-${suffix}-${profileIds.length + 1}`, name, classId },
+      data: {
+        userId: studentUserId,
+        studentNo: `AUD-${suffix}-${profileIds.length + 1}`,
+        classId,
+      },
       select: { id: true },
     })
 
@@ -209,6 +224,7 @@ describe('审计日志 API (e2e)', () => {
     })
     await prisma.studentProfile.deleteMany({ where: { id: { in: profileIds } } })
     await prisma.authSession.deleteMany({ where: { userId: { in: userIds } } })
+    await prisma.userRoleHistory.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.userRole.deleteMany({ where: { userId: { in: userIds } } })
     await prisma.rolePermission.deleteMany({ where: { roleId: { in: roleIds } } })
     await prisma.role.deleteMany({ where: { id: { in: roleIds } } })

@@ -24,9 +24,12 @@ import { apiRequest } from '@/lib/api-client'
 const user = {
   id: 'user-1',
   email: 'student@example.com',
-  displayName: '张三',
+  phone: null,
+  realName: '张三',
+  avatarUrl: null,
   status: 'ACTIVE' as const,
   roles: [],
+  permissions: [],
 }
 
 function success<T>(data: T) {

@@ -350,6 +350,15 @@ export class StudentProfileService {
         throw new ConflictException('学生班级已被其他操作修改，请刷新后重试')
       }
 
+      /**
+       * 必须在更新 classId 之前按旧班级重算资格：
+       * 此时档案仍指向旧班级，「本班在籍学生」这一依据才可见；
+       * 更新之后再算会得到空集合，导致旧班级协管授权漏撤销。
+       */
+      if (profile.userId && fromClassId) {
+        await this.lifecycle.revokeStudentBasisIfOnly(profile.userId, fromClassId, actorId, tx)
+      }
+
       const result = await tx.studentProfile.update({
         where: { id: profileId },
         data: { classId: targetClassId, updatedById: actorId },
@@ -365,15 +374,11 @@ export class StudentProfileService {
         },
       })
 
-      if (profile.userId && fromClassId) {
-        await this.lifecycle.revokeStudentBasisIfOnly(profile.userId, fromClassId, actorId, tx)
-      }
-
       // 审计与业务变更同属一个事务：任一步失败都会整体回滚
       await this.audit.record(
         {
           actor: { type: 'USER', userId: actorId },
-          action: fromClassId ? 'student.profile.transfer' : 'student.profile.assign-class',
+          action: fromClassId ? 'student.profile.transfer' : 'student.profile.assign_class',
           targetType: 'STUDENT_PROFILE',
           targetId: profileId,
           scopeOrgUnitId: targetClassId,

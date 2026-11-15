@@ -29,6 +29,19 @@ function collectPageCodes(nodes: MenuTreeNode[]): Set<string> {
 const PAGE_CODES = collectPageCodes(DEFAULT_MENU_TREE)
 const ROLE_CODES = PRESET_ROLES.map((role) => role.code)
 
+/** 管理类页面：只有管理角色可以拥有，教师/协管员/学生一律没有 */
+const MANAGEMENT_PAGE_CODES = [
+  'USER_ACCOUNTS',
+  'STUDENT_PROFILES',
+  'STAFF_PROFILES',
+  'ROLE_ASSIGNMENTS',
+  'ORGANIZATION_TREE',
+  'CLASS_DUTIES',
+  'COUNSELOR_ASSIGNMENTS',
+  'COORDINATOR_ASSIGNMENTS',
+  'AUDIT_LOGS',
+] as const
+
 describe('预置角色定义', () => {
   it('恰好七个互不相同的预置角色，且不含旧 SUPER_ADMIN', () => {
     expect(PRESET_ROLES).toHaveLength(7)
@@ -62,36 +75,31 @@ describe('角色菜单矩阵', () => {
     }
   })
 
-  it('学生个人业务页面只分配给 STUDENT', () => {
-    const studentOnly = ['MY_TOPIC', 'MY_PROJECT', 'THESIS_SUBMISSION']
+  it('学生角色只有个人入口，不拥有任何管理页面', () => {
+    const studentMenus = ROLE_MENU_CODES[RoleCode.STUDENT]
 
-    for (const roleCode of ROLE_CODES) {
-      if (roleCode === RoleCode.STUDENT) {
-        for (const code of studentOnly) {
-          expect(ROLE_MENU_CODES[roleCode]).toContain(code)
-        }
+    expect([...studentMenus]).toEqual(['DASHBOARD', 'MY_PROFILE'])
 
-        continue
-      }
-
-      for (const code of studentOnly) {
-        expect(ROLE_MENU_CODES[roleCode]).not.toContain(code)
-      }
+    for (const managementCode of MANAGEMENT_PAGE_CODES) {
+      expect(studentMenus).not.toContain(managementCode)
     }
   })
 
-  it('指导页面只分配给 TEACHER，审核页面不分配给 STUDENT', () => {
-    for (const roleCode of ROLE_CODES) {
-      expect(ROLE_MENU_CODES[roleCode].includes('GUIDANCE_STUDENTS')).toBe(
-        roleCode === RoleCode.TEACHER,
-      )
+  it('教师与班级协管员只有个人入口，管理页面仅授予管理角色', () => {
+    for (const roleCode of [RoleCode.TEACHER, RoleCode.CLASS_COORDINATOR] as const) {
+      const menus = ROLE_MENU_CODES[roleCode]
 
-      if (roleCode === RoleCode.STUDENT) {
-        expect(ROLE_MENU_CODES[roleCode]).not.toContain('TOPIC_REVIEW')
-        expect(ROLE_MENU_CODES[roleCode]).not.toContain('THESIS_REVIEW')
-        expect(ROLE_MENU_CODES[roleCode]).not.toContain('PROCESS_REVIEW')
+      expect([...menus]).toEqual(['DASHBOARD', 'MY_PROFILE'])
+
+      for (const managementCode of MANAGEMENT_PAGE_CODES) {
+        expect(menus).not.toContain(managementCode)
       }
     }
+
+    // 反向校验：管理角色必须真的持有对应的管理入口
+    expect(ROLE_MENU_CODES[RoleCode.SCHOOL_ADMIN]).toContain('STUDENT_PROFILES')
+    expect(ROLE_MENU_CODES[RoleCode.DEPARTMENT_ADMIN]).toContain('STAFF_PROFILES')
+    expect(ROLE_MENU_CODES[RoleCode.MAJOR_ADMIN]).toContain('ROLE_ASSIGNMENTS')
   })
 
   it('班级协管员没有全局管理入口', () => {
@@ -108,13 +116,36 @@ describe('角色菜单矩阵', () => {
     }
   })
 
-  it('平台超管只保留技术维护入口，不获得学生个人业务页面', () => {
-    expect(ROLE_MENU_CODES[RoleCode.PLATFORM_SUPER_ADMIN]).toEqual([
+  it('平台超管只保留技术维护入口，不承担学校日常业务', () => {
+    const superAdminMenus = ROLE_MENU_CODES[RoleCode.PLATFORM_SUPER_ADMIN]
+
+    expect([...superAdminMenus]).toEqual([
       'DASHBOARD',
-      'AI_ASSISTANT',
-      'ROLE_MANAGEMENT',
-      'MENU_MANAGEMENT',
+      'USER_ACCOUNTS',
+      'ROLE_ASSIGNMENTS',
+      'ORGANIZATION_TREE',
+      'AUDIT_LOGS',
+      'MY_PROFILE',
     ])
+
+    // 学生档案、教职工档案与班级事务属于学校侧业务，平台超管不持有其入口
+    for (const businessPage of [
+      'STUDENT_PROFILES',
+      'STAFF_PROFILES',
+      'CLASS_DUTIES',
+      'COUNSELOR_ASSIGNMENTS',
+      'COORDINATOR_ASSIGNMENTS',
+    ]) {
+      expect(superAdminMenus).not.toContain(businessPage)
+    }
+  })
+
+  it('协管员授权入口只授予学校管理员（特殊覆盖仅学校级可执行）', () => {
+    for (const roleCode of ROLE_CODES) {
+      expect(ROLE_MENU_CODES[roleCode].includes('COORDINATOR_ASSIGNMENTS')).toBe(
+        roleCode === RoleCode.SCHOOL_ADMIN,
+      )
+    }
   })
 })
 

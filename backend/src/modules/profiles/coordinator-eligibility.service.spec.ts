@@ -25,8 +25,12 @@ function createOrgFake() {
 
 interface HarnessOptions {
   userStatus?: 'ACTIVE' | 'DISABLED'
-  student?: { classId: string; enrollmentStatus: string } | null
-  teacher?: { id: string; employmentStatus: string } | null
+  student?: { classId: string | null; enrollmentStatus: string } | null
+  teacher?: {
+    id: string
+    status: string
+    personnelProfile?: { status?: string; primaryOrganizationUnitId?: string }
+  } | null
   duties?: Array<{
     classId: string
     validUntil: Date | null
@@ -69,13 +73,14 @@ function createPrismaFake(options: HarnessOptions = {}) {
       },
     },
     teacherProfile: {
-      async findUnique() {
+      // 教师身份挂在工作人员档案下，只能通过 personnelProfile.userId 反查
+      async findFirst() {
         return teacher
       },
     },
     teacherClassDuty: {
       async findMany({ where }: { where: Row }) {
-        if (!teacher || teacher.employmentStatus !== 'ACTIVE') return []
+        if (!teacher || teacher.status !== 'ACTIVE') return []
 
         const classIds = (where['classId'] as { in: string[] }).in
 
@@ -124,7 +129,7 @@ function createService(options: HarnessOptions = {}) {
 }
 
 describe('CoordinatorEligibilityService.evaluate', () => {
-  it('本班在籍学生具备 STUDENT_MONITOR 资格', async () => {
+  it('本班在籍学生获得 STUDENT_SELF 资格', async () => {
     const service = createService({
       student: { classId: 'class-1', enrollmentStatus: 'ACTIVE' },
     })
@@ -132,27 +137,24 @@ describe('CoordinatorEligibilityService.evaluate', () => {
     const result = await service.evaluate('user-1', 'class-1')
 
     expect(result.eligible).toBe(true)
-    expect(result.bases).toContain('STUDENT_MONITOR')
-    // 同班学生不重复计为班助
-    expect(result.bases).not.toContain('CLASS_ASSISTANT')
+    expect(result.bases).toEqual(['STUDENT_SELF'])
   })
 
-  it('同专业其他班学生具备 CLASS_ASSISTANT 资格', async () => {
+  it('学生只能协管本人当前班级，同专业其他班也不具备资格', async () => {
     const service = createService({
       student: { classId: 'class-1', enrollmentStatus: 'ACTIVE' },
     })
 
-    const result = await service.evaluate('user-1', 'class-2')
-
-    expect(result.bases).toEqual(['CLASS_ASSISTANT'])
-  })
-
-  it('跨专业学生不具备班助资格', async () => {
-    const service = createService({
-      student: { classId: 'class-1', enrollmentStatus: 'ACTIVE' },
-    })
-
+    expect((await service.evaluate('user-1', 'class-2')).eligible).toBe(false)
     expect((await service.evaluate('user-1', 'class-3')).eligible).toBe(false)
+  })
+
+  it('尚未分班的学生不具备任何学生类资格', async () => {
+    const service = createService({
+      student: { classId: null, enrollmentStatus: 'ACTIVE' },
+    })
+
+    expect((await service.evaluate('user-1', 'class-1')).eligible).toBe(false)
   })
 
   it('休学学生不再具备任何学生类资格', async () => {
@@ -166,7 +168,7 @@ describe('CoordinatorEligibilityService.evaluate', () => {
   it('有效班主任任职产生 HEAD_TEACHER 资格并返回最近到期时间', async () => {
     const validUntil = new Date(Date.now() + 86_400_000)
     const service = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-1', validUntil }],
     })
 
@@ -178,7 +180,7 @@ describe('CoordinatorEligibilityService.evaluate', () => {
 
   it('离职教师即使存在任职记录也不再具备资格', async () => {
     const service = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'LEFT' },
+      teacher: { id: 'teacher-1', status: 'LEFT' },
       duties: [{ classId: 'class-1', validUntil: null }],
     })
 
@@ -187,12 +189,12 @@ describe('CoordinatorEligibilityService.evaluate', () => {
 
   it('已撤销或已过期的班主任任职不产生资格', async () => {
     const revoked = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-1', validUntil: null, revokedAt: NOW }],
     })
 
     const expired = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-1', validUntil: new Date(Date.now() - 1_000) }],
     })
 
@@ -218,7 +220,7 @@ describe('CoordinatorEligibilityService.evaluate', () => {
 
   it('同一用户的多重资格全部返回', async () => {
     const service = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-1', validUntil: null }],
       counselors: [{ classId: 'class-1', validUntil: null }],
       overrides: [{ classId: 'class-1', validUntil: null }],
@@ -233,7 +235,7 @@ describe('CoordinatorEligibilityService.evaluate', () => {
     INACTIVE.add('class-disabled')
 
     const service = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-disabled', validUntil: null }],
     })
 
@@ -245,7 +247,7 @@ describe('CoordinatorEligibilityService.evaluate', () => {
   it('账号被禁用时不具备任何资格', async () => {
     const service = createService({
       userStatus: 'DISABLED',
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-1', validUntil: null }],
     })
 
@@ -282,7 +284,7 @@ describe('CoordinatorEligibilityService.filterAssignments', () => {
   it('最近资格到期时间参与菜单缓存 TTL 计算', async () => {
     const validUntil = new Date(Date.now() + 60_000)
     const service = createService({
-      teacher: { id: 'teacher-1', employmentStatus: 'ACTIVE' },
+      teacher: { id: 'teacher-1', status: 'ACTIVE' },
       duties: [{ classId: 'class-1', validUntil }],
     })
 

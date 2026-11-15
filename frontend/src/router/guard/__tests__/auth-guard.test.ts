@@ -31,9 +31,12 @@ interface RouteLike {
 const studentUser: AuthUser = {
   id: 'user-1',
   email: 'student@example.com',
-  displayName: '张三',
+  phone: null,
+  realName: '张三',
+  avatarUrl: null,
   status: 'ACTIVE',
   roles: [{ id: 'role-1', code: 'STUDENT', name: '学生' }],
+  permissions: [],
 }
 
 const studentMenus: MenuTreeNode[] = [

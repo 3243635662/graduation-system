@@ -1,24 +1,36 @@
 import { describe, expect, it } from 'vitest'
 
-import { loginSchema, registerSchema, sendEmailCodeSchema } from '../auth.schema'
+import { loginSchema, profileSchema, registerSchema, sendEmailCodeSchema } from '../auth.schema'
 
 describe('auth schemas', () => {
   describe('loginSchema', () => {
-    it('接受合法邮箱与密码', () => {
-      const result = loginSchema.safeParse({ email: 'Student@Example.com', password: '12345678' })
+    it('接受邮箱标识并 trim', () => {
+      const result = loginSchema.safeParse({
+        identifier: '  Student@Example.com ',
+        password: '12345678',
+      })
 
       expect(result.success).toBe(true)
-      expect(result.success && result.data.email).toBe('student@example.com')
+      expect(result.success && result.data.identifier).toBe('Student@Example.com')
     })
 
-    it('拒绝非法邮箱', () => {
-      const result = loginSchema.safeParse({ email: 'not-an-email', password: '12345678' })
+    it('接受学号或工号作为标识', () => {
+      expect(loginSchema.safeParse({ identifier: '2021001001', password: 'x' }).success).toBe(true)
+      expect(loginSchema.safeParse({ identifier: 'T-0012', password: 'x' }).success).toBe(true)
+    })
+
+    it('标识不能为空', () => {
+      const result = loginSchema.safeParse({ identifier: '   ', password: '12345678' })
+
       expect(result.success).toBe(false)
+
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe('validation.identifierRequired')
+      }
     })
 
     it('密码不能为空', () => {
-      const result = loginSchema.safeParse({ email: 'a@b.com', password: '' })
-      expect(result.success).toBe(false)
+      expect(loginSchema.safeParse({ identifier: 'a@b.com', password: '' }).success).toBe(false)
     })
   })
 
@@ -38,7 +50,7 @@ describe('auth schemas', () => {
 
   describe('registerSchema', () => {
     const base = {
-      displayName: '张三',
+      realName: '张三',
       email: 'student@example.com',
       emailCode: '123456',
       password: 'password123',
@@ -54,7 +66,7 @@ describe('auth schemas', () => {
 
     it('缺少验证码时校验失败', () => {
       const withoutCode = {
-        displayName: base.displayName,
+        realName: base.realName,
         email: base.email,
         password: base.password,
         confirmPassword: base.confirmPassword,
@@ -88,9 +100,15 @@ describe('auth schemas', () => {
       expect(result.success && result.data.password).toBe(' password123 ')
     })
 
-    it('显示名称长度必须在 2～30 之间', () => {
-      expect(registerSchema.safeParse({ ...base, displayName: 'a' }).success).toBe(false)
-      expect(registerSchema.safeParse({ ...base, displayName: 'a'.repeat(31) }).success).toBe(false)
+    it('真实姓名长度必须在 2～50 之间', () => {
+      expect(registerSchema.safeParse({ ...base, realName: 'a' }).success).toBe(false)
+      expect(registerSchema.safeParse({ ...base, realName: 'a'.repeat(51) }).success).toBe(false)
+    })
+
+    it('真实姓名只允许中文、英文字母、间隔号与空格', () => {
+      expect(registerSchema.safeParse({ ...base, realName: '张三123' }).success).toBe(false)
+      expect(registerSchema.safeParse({ ...base, realName: '阿依古丽·买买提' }).success).toBe(true)
+      expect(registerSchema.safeParse({ ...base, realName: 'John Smith' }).success).toBe(true)
     })
 
     it('密码至少 8 位、最多 128 位', () => {
@@ -122,6 +140,28 @@ describe('auth schemas', () => {
           ]),
         )
       }
+    })
+  })
+
+  describe('profileSchema', () => {
+    it('允许全部留空（表示不修改/清空）', () => {
+      expect(profileSchema.safeParse({ realName: '', phone: '', avatarUrl: '' }).success).toBe(true)
+    })
+
+    it('校验手机号与头像地址格式', () => {
+      expect(
+        profileSchema.safeParse({ realName: '张三', phone: 'abc', avatarUrl: '' }).success,
+      ).toBe(false)
+      expect(
+        profileSchema.safeParse({ realName: '张三', phone: '', avatarUrl: 'ftp://a.png' }).success,
+      ).toBe(false)
+      expect(
+        profileSchema.safeParse({
+          realName: '张三',
+          phone: '13800000000',
+          avatarUrl: 'https://cdn.example.com/a.png',
+        }).success,
+      ).toBe(true)
     })
   })
 })

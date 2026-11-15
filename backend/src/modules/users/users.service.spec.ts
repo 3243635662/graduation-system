@@ -9,16 +9,16 @@ import type { OrganizationService } from '../rbac/organizations/organization.ser
 import { UsersService } from './users.service.js'
 
 const NOW = new Date()
+const PAST = new Date(NOW.getTime() - 86_400_000)
 
-function roleRow(overrides: Record<string, unknown>) {
+/** 当前授权表只保存仍然有效的分配，因此不再有 revokedAt 字段 */
+function roleRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'assignment-1',
     userId: 'user-1',
     scopeOrgUnitId: 'class-1',
     validFrom: new Date(0),
     validUntil: null,
-    revokedAt: null,
-    revocationReason: null,
     role: {
       code: 'CLASS_COORDINATOR',
       name: '班级事务协管员',
@@ -30,10 +30,14 @@ function roleRow(overrides: Record<string, unknown>) {
   }
 }
 
+/**
+ * 账号行：姓名统一取 User.realName，
+ * 教师身份挂在 personnelProfile 下，学生档案不再保存姓名。
+ */
 function userRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'user-1',
-    displayName: '张三',
+    realName: '张三',
     email: 'zhangsan@example.test',
     status: 'ACTIVE',
     lastLoginAt: null,
@@ -42,17 +46,14 @@ function userRow(overrides: Record<string, unknown> = {}) {
     studentProfile: {
       id: 'student-1',
       studentNo: '2024001',
-      name: '张三',
       classId: 'class-1',
       enrollmentStatus: 'ACTIVE',
       class: { id: 'class-1', name: '软件工程一班' },
     },
-    teacherProfile: {
-      id: 'teacher-1',
-      teacherNo: 'T001',
-      departmentId: 'dept-other',
-      employmentStatus: 'ACTIVE',
-      department: { id: 'dept-other', name: '经济管理学院' },
+    personnelProfile: {
+      primaryOrganizationUnitId: 'dept-other',
+      primaryOrganization: { id: 'dept-other', name: '经济管理学院', type: 'DEPARTMENT' },
+      teacherProfile: { id: 'teacher-1', teacherNo: 'T001', status: 'ACTIVE' },
     },
     ...overrides,
   }
@@ -172,8 +173,29 @@ describe('UsersService.list', () => {
     const item = result.list[0]!
 
     expect(item.studentProfile?.studentNo).toBe('2024001')
+    expect(item.studentProfile?.name).toBe('张三')
     expect(item.teacherProfile).toBeNull()
     expect(item.roles.map((role) => role.code)).toEqual(['CLASS_COORDINATOR'])
+  })
+
+  it('未分班学生（classId 为空）不返回学生档案摘要', async () => {
+    const harness = createHarness({
+      users: [
+        userRow({
+          studentProfile: {
+            id: 'student-1',
+            studentNo: '2024001',
+            classId: null,
+            enrollmentStatus: 'ACTIVE',
+            class: null,
+          },
+        }),
+      ],
+    })
+
+    const result = await harness.service.list('actor-major', { page: 1, pageSize: 10 })
+
+    expect(result.list[0]?.studentProfile).toBeNull()
   })
 
   it('协管员角色按「用户+班级」资格判定，不会整用户误判为有效', async () => {
@@ -184,15 +206,23 @@ describe('UsersService.list', () => {
     expect(result.list[0]?.roles[0]?.isEffective).toBe(false)
   })
 
-  it('已撤销的角色保留历史但 isEffective=false', async () => {
+  it('有效期已过的角色仍展示但 isEffective=false', async () => {
     const harness = createHarness({
-      roleRows: [roleRow({ revokedAt: NOW, revocationReason: 'MANUAL' })],
+      roleRows: [roleRow({ validUntil: PAST })],
     })
 
     const result = await harness.service.list('actor-major', { page: 1, pageSize: 10 })
 
-    expect(result.list[0]?.roles[0]?.revokedAt).toBeInstanceOf(Date)
+    expect(result.list[0]?.roles[0]?.validUntil).toBeInstanceOf(Date)
     expect(result.list[0]?.roles[0]?.isEffective).toBe(false)
+  })
+
+  it('未经授权的角色不因撤销历史被展示（撤销即从当前表删除）', async () => {
+    const harness = createHarness({ roleRows: [] })
+
+    const result = await harness.service.list('actor-major', { page: 1, pageSize: 10 })
+
+    expect(result.list[0]?.roles).toEqual([])
   })
 
   it('roleCode=CLASS_COORDINATOR 只匹配仍具备资格的账号', async () => {
@@ -265,5 +295,38 @@ describe('UsersService.findOne', () => {
 
     expect(item.studentProfile?.classId).toBe('class-1')
     expect(item.teacherProfile).toBeNull()
+  })
+
+  it('详情姓名取 User.realName，不返回 displayName', async () => {
+    const harness = createHarness({ foundUser: userRow() })
+
+    const item = await harness.service.findOne('actor-major', 'user-1')
+
+    expect(item.realName).toBe('张三')
+    expect(item).not.toHaveProperty('displayName')
+  })
+
+  it('教师档案可见时机构信息来自工作人员档案的正式组织归属', async () => {
+    const harness = createHarness({ foundUser: userRow() })
+    const scopeSpy = harness.scopeService.resolve as unknown as ReturnType<typeof vi.fn>
+
+    scopeSpy.mockImplementation(async (_actor: string, code: string) => {
+      if (code === 'user:read') return { kind: 'SUBTREE', orgUnitIds: ['dept-other'] }
+      if (code === 'student:profile:read') return { kind: 'NONE' }
+      if (code === 'teacher:profile:read') return { kind: 'SUBTREE', orgUnitIds: ['dept-other'] }
+      if (code === 'rbac:role-assignment:read') return { kind: 'NONE' }
+      return { kind: 'NONE' }
+    })
+
+    const item = await harness.service.findOne('actor-dept', 'user-1')
+
+    expect(item.teacherProfile).toMatchObject({
+      teacherNo: 'T001',
+      realName: '张三',
+      organizationId: 'dept-other',
+      organizationType: 'DEPARTMENT',
+      status: 'ACTIVE',
+    })
+    expect(item.studentProfile).toBeNull()
   })
 })

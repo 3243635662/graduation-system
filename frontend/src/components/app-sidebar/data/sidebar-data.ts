@@ -1,37 +1,30 @@
 import { AudioWaveformIcon, CommandIcon, GalleryVerticalEndIcon } from '@lucide/vue'
 
-import type { SidebarData, Team, User } from '../types'
-
-const user: User = {
-  name: 'shadcn',
-  email: 'm@example.com',
-  avatar: '/avatars/shadcn.jpg',
-}
+import type { SidebarData, Team } from '../types'
 
 const teams: Team[] = [
   {
-    name: 'Acme Inc',
+    name: '毕业设计管理系统',
     logo: GalleryVerticalEndIcon,
-    plan: 'Enterprise',
+    plan: 'Graduation System',
   },
   {
-    name: 'Acme Corp.',
+    name: '教务处',
     logo: AudioWaveformIcon,
-    plan: 'Startup',
+    plan: 'Academic Affairs',
   },
   {
-    name: 'Evil Corp.',
+    name: '信息中心',
     logo: CommandIcon,
-    plan: 'Free',
+    plan: 'IT Center',
   },
 ]
 
 /**
  * 侧边栏静态部分
  *
- * navMain 已移除：主菜单改由 useMenuStore().navGroups 提供（后端真实菜单）。
+ * navMain 与 user 都已移出：菜单来自后端，用户信息来自 auth store。
  */
 export const sidebarData: SidebarData = {
-  user,
   teams,
 }

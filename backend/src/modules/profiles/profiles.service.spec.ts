@@ -83,11 +83,14 @@ function createOrganizationFake() {
   } as unknown as OrganizationService
 }
 
+/** 撤销/重算资格由 coordinator-lifecycle.service.spec.ts 单独覆盖 */
 const lifecycleStub = {
   revokeIfIneligible: async () => [],
+  revokeStudentBasisIfOnly: async () => [],
   invalidateMenus: async () => undefined,
 } as unknown as CoordinatorLifecycleService
 
+/** 执行人角色校验由 rbac 侧覆盖；这里只验证业务分支 */
 const actorPolicyStub = {
   assertAllowed: async () => undefined,
 } as unknown as CoordinatorActorPolicy
@@ -131,14 +134,92 @@ function uniqueError(): never {
   throw Object.assign(new Error('unique'), { code: 'P2002' })
 }
 
+/** 学生档案列表条件（只覆盖服务实际会拼出的字段） */
+function matchesStudentProfileWhere(row: Row, where: Row, users: Row[]): boolean {
+  const classId = where['classId']
+
+  if (classId === null) {
+    if (row['classId'] !== null) return false
+  } else if (classId && typeof classId === 'object') {
+    const ids = (classId as { in: string[] }).in
+
+    if (!ids.includes(String(row['classId']))) return false
+  }
+
+  if (where['enrollmentStatus'] && row['enrollmentStatus'] !== where['enrollmentStatus']) {
+    return false
+  }
+
+  if (where['studentNo'] && row['studentNo'] !== where['studentNo']) return false
+
+  const user = users.find((item) => item['id'] === row['userId'])
+  const realName = (user?.['realName'] as string | undefined) ?? ''
+
+  if (where['realName']) {
+    const expected = (where['realName'] as { contains: string }).contains
+
+    if (!realName.includes(expected)) return false
+  }
+
+  const or = where['OR'] as
+    | Array<{ studentNo: { contains: string } } | { user: { realName: { contains: string } } }>
+    | undefined
+
+  if (or) {
+    const studentNo = row['studentNo'] as string
+
+    return or.some((condition) => {
+      if ('studentNo' in condition) {
+        return studentNo.includes(condition.studentNo.contains)
+      }
+
+      return realName.includes(condition.user.realName.contains)
+    })
+  }
+
+  return true
+}
+
 function createPrismaFake() {
   const users: Row[] = [
-    { id: 'user-teacher', status: 'ACTIVE', deletedAt: null },
-    { id: 'user-student', status: 'ACTIVE', deletedAt: null },
-    { id: 'user-other', status: 'ACTIVE', deletedAt: null },
-    { id: 'user-disabled', status: 'DISABLED', deletedAt: null },
+    {
+      id: 'user-teacher',
+      realName: '教师甲',
+      email: 't@example.test',
+      status: 'ACTIVE',
+      deletedAt: null,
+    },
+    {
+      id: 'user-student',
+      realName: '张三',
+      email: 's@example.test',
+      status: 'ACTIVE',
+      deletedAt: null,
+    },
+    {
+      id: 'user-student-2',
+      realName: '李四',
+      email: 's2@example.test',
+      status: 'ACTIVE',
+      deletedAt: null,
+    },
+    {
+      id: 'user-other',
+      realName: '王五',
+      email: 'o@example.test',
+      status: 'ACTIVE',
+      deletedAt: null,
+    },
+    {
+      id: 'user-disabled',
+      realName: '停用',
+      email: 'd@example.test',
+      status: 'DISABLED',
+      deletedAt: null,
+    },
   ]
 
+  const personnelProfiles: Row[] = []
   const studentProfiles: Row[] = []
   const teacherProfiles: Row[] = []
   const duties: Row[] = []
@@ -153,14 +234,32 @@ function createPrismaFake() {
     )
   }
 
-  const withdrawUser = (userId: string) => users.find((user) => user['id'] === userId) ?? null
-
   const prisma = {
     $transaction: async (callback: (tx: unknown) => unknown) => callback(prisma),
     $queryRaw: async () => [],
     user: {
       async findUnique({ where }: { where: { id: string } }) {
-        return withdrawUser(where.id)
+        return users.find((user) => user['id'] === where.id) ?? null
+      },
+    },
+    personnelProfile: {
+      async findUnique({ where }: { where: Row }) {
+        return findUnique(personnelProfiles, where)
+      },
+      async create({ data }: { data: Row }) {
+        if (personnelProfiles.some((row) => row['userId'] === data['userId'])) uniqueError()
+
+        const row = {
+          id: nextId('personnel'),
+          status: 'ACTIVE',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data,
+        }
+
+        personnelProfiles.push(row)
+
+        return row
       },
     },
     studentProfile: {
@@ -174,6 +273,9 @@ function createPrismaFake() {
 
         return row
       },
+      async count({ where }: { where: Row }) {
+        return studentProfiles.filter((row) => matchesStudentProfileWhere(row, where, users)).length
+      },
       async create({ data }: { data: Row }) {
         if (
           studentProfiles.some((row) => row['studentNo'] === data['studentNo']) ||
@@ -184,6 +286,8 @@ function createPrismaFake() {
 
         const row = {
           id: nextId('student'),
+          classId: null,
+          enrollmentYear: null,
           enrollmentStatus: 'ACTIVE',
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -204,13 +308,33 @@ function createPrismaFake() {
         return row
       },
       async findMany({ where }: { where: Row }) {
-        return studentProfiles.filter(
-          (row) =>
-            row['classId'] === where['classId'] &&
-            (where['enrollmentStatus']
-              ? row['enrollmentStatus'] === where['enrollmentStatus']
-              : true),
-        )
+        return studentProfiles
+          .filter((row) => matchesStudentProfileWhere(row, where, users))
+          .map((row) => {
+            const user = users.find((item) => item['id'] === row['userId'])!
+            const classId = row['classId'] as string | null
+            const klass = classId ? ORG_UNITS[classId] : undefined
+            const parentId = klass?.['parentId'] as string | undefined
+            const parent = parentId ? ORG_UNITS[parentId] : undefined
+
+            return {
+              ...row,
+              user: {
+                realName: user['realName'],
+                email: user['email'],
+                status: user['status'],
+              },
+              class: klass
+                ? {
+                    id: klass['id'],
+                    name: klass['name'],
+                    parent: parent
+                      ? { id: parent['id'], name: parent['name'], type: parent['type'] }
+                      : null,
+                  }
+                : null,
+            }
+          })
       },
     },
     studentClassTransfer: {
@@ -220,19 +344,52 @@ function createPrismaFake() {
     },
     teacherProfile: {
       async findUnique({ where }: { where: Row }) {
-        return findUnique(teacherProfiles, where)
+        const row = findUnique(teacherProfiles, where)
+
+        if (!row) return null
+
+        // 教师身份挂在工作人员档案下：账号通过 personnelProfile.userId 取得
+        const personnel = personnelProfiles.find((item) => item['id'] === row['personnelProfileId'])
+
+        return {
+          ...row,
+          personnelProfile: personnel
+            ? {
+                userId: personnel['userId'],
+                status: personnel['status'],
+                primaryOrganizationUnitId: personnel['primaryOrganizationUnitId'],
+              }
+            : null,
+        }
+      },
+      async findFirst({ where }: { where: Row }) {
+        const personnelId = (where['personnelProfile'] as { userId?: string } | undefined)?.userId
+
+        if (!personnelId) return null
+
+        return (
+          teacherProfiles.find((row) => {
+            const personnel = personnelProfiles.find(
+              (item) => item['id'] === row['personnelProfileId'],
+            )
+
+            return personnel?.['userId'] === personnelId
+          }) ?? null
+        )
       },
       async create({ data }: { data: Row }) {
         if (
           teacherProfiles.some((row) => row['teacherNo'] === data['teacherNo']) ||
-          teacherProfiles.some((row) => row['userId'] === data['userId'])
+          teacherProfiles.some((row) => row['personnelProfileId'] === data['personnelProfileId'])
         ) {
           uniqueError()
         }
 
         const row = {
           id: nextId('teacher'),
-          employmentStatus: 'ACTIVE',
+          status: 'ACTIVE',
+          title: null,
+          professionalInfo: null,
           createdAt: new Date(),
           updatedAt: new Date(),
           ...data,
@@ -251,28 +408,29 @@ function createPrismaFake() {
 
         return row
       },
-      async findMany({ where }: { where: Row }) {
-        return teacherProfiles.filter(
-          (row) =>
-            row['departmentId'] === where['departmentId'] &&
-            (where['employmentStatus']
-              ? row['employmentStatus'] === where['employmentStatus']
-              : true),
-        )
-      },
     },
     teacherClassDuty: {
       async findUnique({ where }: { where: Row }) {
-        return findUnique(duties, where)
+        const row = findUnique(duties, where)
+
+        if (!row) return null
+
+        // revoke() 需要从任职记录回溯到账号，用于重算协管员资格
+        const teacher = teacherProfiles.find((item) => item['id'] === row['teacherId'])
+        const personnel = personnelProfiles.find(
+          (item) => item['id'] === teacher?.['personnelProfileId'],
+        )
+
+        return { ...row, teacher: { personnelProfile: { userId: personnel?.['userId'] } } }
       },
       async create({ data }: { data: Row }) {
         const row = {
           id: nextId('duty'),
+          dutyType: 'HEAD_TEACHER',
           revokedAt: null,
           revokedById: null,
           createdAt: new Date(),
           updatedAt: new Date(),
-          teacher: { userId: 'user-teacher' },
           ...data,
         }
 
@@ -298,7 +456,11 @@ function createPrismaFake() {
       },
       async findMany({ where }: { where: Row }) {
         return duties.filter(
-          (row) => row['classId'] === where['classId'] && matchesTimeWindow(row, where),
+          (row) =>
+            row['classId'] === where['classId'] &&
+            (where['teacherId'] ? row['teacherId'] === where['teacherId'] : true) &&
+            (where['dutyType'] ? row['dutyType'] === where['dutyType'] : true) &&
+            matchesTimeWindow(row, where),
         )
       },
     },
@@ -349,6 +511,8 @@ function createPrismaFake() {
 
   return {
     prisma: prisma as unknown as PrismaService,
+    users,
+    personnelProfiles,
     students: studentProfiles,
     teachers: teacherProfiles,
     duties,
@@ -371,85 +535,110 @@ describe('StudentProfileService', () => {
     )
   })
 
-  it('允许在没有 User 的情况下建立学生档案', async () => {
+  it('必须先有账号才能建立学生档案，姓名取 User.realName', async () => {
     const profile = await service.create(
-      { studentNo: '2024001', name: '张三', classId: 'org-class' },
+      { userId: 'user-student', studentNo: '2024001', classId: 'org-class' },
       'actor-1',
     )
 
-    expect(profile.userId).toBeNull()
+    expect(profile.userId).toBe('user-student')
     expect(profile.studentNo).toBe('2024001')
     expect(profile.createdById).toBe('actor-1')
+    // 档案不再保存第二份姓名
+    expect(profile).not.toHaveProperty('name')
   })
 
-  it('学生注册后可以绑定已有档案', async () => {
+  it('未分班学生可以正常建档，classId 为 null', async () => {
     const profile = await service.create(
-      { studentNo: '2024002', name: '李四', classId: 'org-class' },
+      { userId: 'user-student', studentNo: '2024002' },
       'actor-1',
     )
 
-    const bound = await service.bindUser(String(profile.id), 'user-student')
-
-    expect(bound.userId).toBe('user-student')
+    expect(profile.classId).toBeNull()
+    expect(profile.userId).toBe('user-student')
   })
 
-  it('同一用户不能绑定两个学生档案', async () => {
-    const first = await service.create(
-      { studentNo: '2024003', name: 'A', classId: 'org-class' },
-      'actor-1',
-    )
-    const second = await service.create(
-      { studentNo: '2024004', name: 'B', classId: 'org-class' },
-      'actor-1',
-    )
-
-    await service.bindUser(String(first.id), 'user-student')
-
-    await expect(service.bindUser(String(second.id), 'user-student')).rejects.toBeInstanceOf(
-      ConflictException,
-    )
+  it('绑定的账号不存在时返回 404', async () => {
+    await expect(
+      service.create({ userId: 'user-missing', studentNo: '2024003' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(NotFoundException)
   })
 
-  it('同一档案不能绑定两个用户', async () => {
-    const profile = await service.create(
-      { studentNo: '2024005', name: 'C', classId: 'org-class' },
-      'actor-1',
-    )
-
-    await service.bindUser(String(profile.id), 'user-student')
-
-    await expect(service.bindUser(String(profile.id), 'user-other')).rejects.toBeInstanceOf(
-      ConflictException,
-    )
+  it('绑定账号被禁用时返回 400', async () => {
+    await expect(
+      service.create({ userId: 'user-disabled', studentNo: '2024004' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(BadRequestException)
   })
 
-  it('重复绑定同一用户保持幂等', async () => {
-    const profile = await service.create(
-      { studentNo: '2024006', name: 'D', classId: 'org-class' },
-      'actor-1',
-    )
+  it('同一用户不能重复建立学生档案', async () => {
+    await service.create({ userId: 'user-student', studentNo: '2024005' }, 'actor-1')
 
-    const first = await service.bindUser(String(profile.id), 'user-student')
-    const second = await service.bindUser(String(profile.id), 'user-student')
+    await expect(
+      service.create({ userId: 'user-student', studentNo: '2024006' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(ConflictException)
+  })
 
-    expect(second.userId).toBe(first.userId)
+  it('学号重复时返回 409', async () => {
+    await service.create({ userId: 'user-student', studentNo: '2024007' }, 'actor-1')
+
+    await expect(
+      service.create({ userId: 'user-student-2', studentNo: '2024007' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(ConflictException)
   })
 
   it('classId 必须是 CLASS 类型组织', async () => {
     await expect(
-      service.create({ studentNo: '2024007', name: 'E', classId: 'org-major' }, 'actor-1'),
+      service.create(
+        { userId: 'user-student', studentNo: '2024008', classId: 'org-major' },
+        'actor-1',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 
   it('停用组织不能建立学生档案', async () => {
     await expect(
-      service.create({ studentNo: '2024008', name: 'F', classId: 'org-class-disabled' }, 'actor-1'),
+      service.create(
+        { userId: 'user-student', studentNo: '2024009', classId: 'org-class-disabled' },
+        'actor-1',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('列表包含未分班学生，unassignedOnly 可筛出未分班学生', async () => {
+    await service.create(
+      { userId: 'user-student', studentNo: '2024010', classId: 'org-class' },
+      'actor-1',
+    )
+    await service.create({ userId: 'user-student-2', studentNo: '2024011' }, 'actor-1')
+
+    const all = await service.list({ classIds: ['org-class'], page: 1, pageSize: 10 })
+
+    expect(all.total).toBe(1)
+    expect(all.list[0]).toMatchObject({
+      studentNo: '2024010',
+      realName: '张三',
+      className: '软件工程一班',
+      majorName: '软件工程',
+    })
+
+    const unassigned = await service.list({
+      classIds: ['org-class'],
+      page: 1,
+      pageSize: 10,
+      unassignedOnly: true,
+    })
+
+    expect(unassigned.total).toBe(1)
+    expect(unassigned.list[0]).toMatchObject({
+      studentNo: '2024011',
+      classId: null,
+      className: null,
+    })
   })
 
   it('转班校验目标班级有效性', async () => {
     const profile = await service.create(
-      { studentNo: '2024009', name: 'G', classId: 'org-class' },
+      { userId: 'user-student', studentNo: '2024012', classId: 'org-class' },
       'actor-1',
     )
 
@@ -476,7 +665,7 @@ describe('StudentProfileService', () => {
 
   it('转班成功后在同一事务写入最小字段审计', async () => {
     const profile = await service.create(
-      { studentNo: '2024010', name: 'H', classId: 'org-class' },
+      { userId: 'user-student', studentNo: '2024013', classId: 'org-class' },
       'actor-1',
     )
 
@@ -495,45 +684,98 @@ describe('StudentProfileService', () => {
       reason: '专业内调整',
     })
   })
+
+  it('未分班学生首次分班写入 assign-class 审计', async () => {
+    const profile = await service.create(
+      { userId: 'user-student', studentNo: '2024014' },
+      'actor-1',
+    )
+
+    await service.changeClass(String(profile.id), 'org-class', '新生分班', 'actor-1')
+
+    expect(auditRecords[0]).toMatchObject({
+      action: 'student.profile.assign_class',
+      before: { classId: null },
+      after: { classId: 'org-class' },
+      reason: '新生分班',
+    })
+  })
+
+  it('分班/转班原因不能为空', async () => {
+    const profile = await service.create(
+      { userId: 'user-student', studentNo: '2024015', classId: 'org-class' },
+      'actor-1',
+    )
+
+    await expect(
+      service.changeClass(String(profile.id), 'org-class-2', '   ', 'actor-1'),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('已经在目标班级时不做变更', async () => {
+    const profile = await service.create(
+      { userId: 'user-student', studentNo: '2024016', classId: 'org-class' },
+      'actor-1',
+    )
+
+    await expect(
+      service.changeClass(String(profile.id), 'org-class', '重复分班', 'actor-1'),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
 })
 
 describe('TeacherProfileService', () => {
   let fake: ReturnType<typeof createPrismaFake>
   let service: TeacherProfileService
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fake = createPrismaFake()
     service = new TeacherProfileService(fake.prisma, createOrganizationFake(), lifecycleStub)
+
+    await fake.prisma.personnelProfile.create({
+      data: { userId: 'user-teacher', primaryOrganizationUnitId: 'org-dept' },
+    })
   })
 
-  it('departmentId 必须是 DEPARTMENT 类型组织', async () => {
+  function personnelId(): string {
+    return String(fake.personnelProfiles[0]!['id'])
+  }
+
+  it('必须基于已存在的工作人员档案创建教师身份', async () => {
     await expect(
-      service.create(
-        { userId: 'user-teacher', teacherNo: 'T001', departmentId: 'org-major' },
-        'actor-1',
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException)
+      service.create({ personnelProfileId: 'personnel-missing', teacherNo: 'T001' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(NotFoundException)
   })
 
-  it('创建教师档案并保留所属院系', async () => {
+  it('创建教师身份并保留工作人员档案关联', async () => {
     const profile = await service.create(
-      { userId: 'user-teacher', teacherNo: 'T002', departmentId: 'org-dept' },
+      { personnelProfileId: personnelId(), teacherNo: 'T002' },
       'actor-1',
     )
 
-    expect(profile.departmentId).toBe('org-dept')
-    expect(profile.employmentStatus).toBe('ACTIVE')
+    expect(profile.personnelProfileId).toBe(personnelId())
+    expect(profile.status).toBe('ACTIVE')
+    expect(profile.createdById).toBe('actor-1')
   })
 
-  it('同一用户不能重复建立教师档案', async () => {
-    await service.create(
-      { userId: 'user-teacher', teacherNo: 'T003', departmentId: 'org-dept' },
-      'actor-1',
-    )
+  it('同一工作人员不能重复建立教师身份', async () => {
+    await service.create({ personnelProfileId: personnelId(), teacherNo: 'T003' }, 'actor-1')
+
+    await expect(
+      service.create({ personnelProfileId: personnelId(), teacherNo: 'T004' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(ConflictException)
+  })
+
+  it('教师编号重复时返回 409', async () => {
+    await fake.prisma.personnelProfile.create({
+      data: { userId: 'user-other', primaryOrganizationUnitId: 'org-dept' },
+    })
+
+    await service.create({ personnelProfileId: personnelId(), teacherNo: 'T005' }, 'actor-1')
 
     await expect(
       service.create(
-        { userId: 'user-teacher', teacherNo: 'T004', departmentId: 'org-dept' },
+        { personnelProfileId: String(fake.personnelProfiles[1]!['id']), teacherNo: 'T005' },
         'actor-1',
       ),
     ).rejects.toBeInstanceOf(ConflictException)
@@ -542,17 +784,20 @@ describe('TeacherProfileService', () => {
 
 describe('TeacherClassDutyService', () => {
   let fake: ReturnType<typeof createPrismaFake>
-  let teacherService: TeacherProfileService
   let service: TeacherClassDutyService
 
   beforeEach(async () => {
     fake = createPrismaFake()
     const organization = createOrganizationFake()
-    teacherService = new TeacherProfileService(fake.prisma, organization, lifecycleStub)
+    const teacherService = new TeacherProfileService(fake.prisma, organization, lifecycleStub)
     service = new TeacherClassDutyService(fake.prisma, organization, lifecycleStub, actorPolicyStub)
 
+    await fake.prisma.personnelProfile.create({
+      data: { userId: 'user-teacher', primaryOrganizationUnitId: 'org-dept' },
+    })
+
     await teacherService.create(
-      { userId: 'user-teacher', teacherNo: 'T100', departmentId: 'org-dept' },
+      { personnelProfileId: String(fake.personnelProfiles[0]!['id']), teacherNo: 'T100' },
       'actor-1',
     )
   })
@@ -564,11 +809,13 @@ describe('TeacherClassDutyService', () => {
   })
 
   it('非在职教师不能担任班主任', async () => {
-    const teacher = fake.teachers[0]!
-    teacher['employmentStatus'] = 'LEFT'
+    fake.teachers[0]!['status'] = 'LEFT'
 
     await expect(
-      service.assign({ teacherId: String(teacher['id']), classId: 'org-class' }, 'actor-1'),
+      service.assign(
+        { teacherId: String(fake.teachers[0]!['id']), classId: 'org-class' },
+        'actor-1',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 
@@ -591,6 +838,16 @@ describe('TeacherClassDutyService', () => {
     await service.assign({ teacherId, classId: 'org-class-2' }, 'actor-1')
 
     expect(fake.duties).toHaveLength(2)
+  })
+
+  it('同一教师同一班级时间重叠时返回 409', async () => {
+    const teacherId = String(fake.teachers[0]!['id'])
+
+    await service.assign({ teacherId, classId: 'org-class' }, 'actor-1')
+
+    await expect(
+      service.assign({ teacherId, classId: 'org-class' }, 'actor-1'),
+    ).rejects.toBeInstanceOf(ConflictException)
   })
 
   it('提前撤销后历史仍可查询，且默认列表不再返回', async () => {

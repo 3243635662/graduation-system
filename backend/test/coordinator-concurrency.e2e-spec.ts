@@ -21,6 +21,7 @@ describe('任职时间区间并发防护（真实数据库）', () => {
 
   const createdOrgIds: string[] = []
   const createdUserIds: string[] = []
+  const createdPersonnelIds: string[] = []
   const createdTeacherIds: string[] = []
 
   let actorId: string
@@ -40,11 +41,11 @@ describe('任职时间区间并发防护（真实数据库）', () => {
       select: { id: true },
     })
 
+    // user_roles 只保存当前授权，撤销即删除行，因此这里不再过滤 revokedAt
     const adminAssignment = admin
       ? await prisma.userRole.findFirst({
           where: {
             userId: admin.id,
-            revokedAt: null,
             role: { code: 'SCHOOL_ADMIN', status: 'ACTIVE' },
             scopeOrgUnitId: { not: null },
           },
@@ -105,7 +106,7 @@ describe('任职时间区间并发防护（真实数据库）', () => {
       data: {
         email: `concurrency-a-${suffix}@example.test`,
         passwordHash: 'not-a-real-hash',
-        displayName: '并发教师A',
+        realName: '并发教师A',
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -115,7 +116,7 @@ describe('任职时间区间并发防护（真实数据库）', () => {
       data: {
         email: `concurrency-b-${suffix}@example.test`,
         passwordHash: 'not-a-real-hash',
-        displayName: '并发教师B',
+        realName: '并发教师B',
         status: 'ACTIVE',
       },
       select: { id: true },
@@ -123,11 +124,33 @@ describe('任职时间区间并发防护（真实数据库）', () => {
 
     createdUserIds.push(teacherUserA.id, teacherUserB.id)
 
-    const teacherA = await prisma.teacherProfile.create({
+    // 教师身份挂在工作人员档案下，账号通过 personnelProfile.userId 取得
+    const personnelA = await prisma.personnelProfile.create({
       data: {
         userId: teacherUserA.id,
+        employeeNo: `T-EA-${suffix}`,
+        primaryOrganizationUnitId: department.id,
+        createdById: actorId,
+      },
+      select: { id: true },
+    })
+
+    const personnelB = await prisma.personnelProfile.create({
+      data: {
+        userId: teacherUserB.id,
+        employeeNo: `T-EB-${suffix}`,
+        primaryOrganizationUnitId: department.id,
+        createdById: actorId,
+      },
+      select: { id: true },
+    })
+
+    createdPersonnelIds.push(personnelA.id, personnelB.id)
+
+    const teacherA = await prisma.teacherProfile.create({
+      data: {
+        personnelProfileId: personnelA.id,
         teacherNo: `T-A-${suffix}`,
-        departmentId: department.id,
         createdById: actorId,
       },
       select: { id: true },
@@ -135,9 +158,8 @@ describe('任职时间区间并发防护（真实数据库）', () => {
 
     const teacherB = await prisma.teacherProfile.create({
       data: {
-        userId: teacherUserB.id,
+        personnelProfileId: personnelB.id,
         teacherNo: `T-B-${suffix}`,
-        departmentId: department.id,
         createdById: actorId,
       },
       select: { id: true },
@@ -165,11 +187,12 @@ describe('任职时间区间并发防护（真实数据库）', () => {
   })
 
   afterAll(async () => {
-    const dutyWhere = { teacherId: { in: createdTeacherIds } }
-
-    await prisma.teacherClassDuty.deleteMany({ where: dutyWhere })
+    await prisma.teacherClassDuty.deleteMany({ where: { teacherId: { in: createdTeacherIds } } })
     await prisma.counselorClassAssignment.deleteMany({ where: { classId } })
+    await prisma.userRoleHistory.deleteMany({ where: { userId: { in: createdUserIds } } })
+    await prisma.userRole.deleteMany({ where: { userId: { in: createdUserIds } } })
     await prisma.teacherProfile.deleteMany({ where: { id: { in: createdTeacherIds } } })
+    await prisma.personnelProfile.deleteMany({ where: { id: { in: createdPersonnelIds } } })
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } })
 
     // 自关联外键要求自下而上逐个删除，批量 DELETE 会因父子引用顺序失败

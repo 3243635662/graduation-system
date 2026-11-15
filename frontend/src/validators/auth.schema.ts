@@ -23,25 +23,44 @@ export const sendEmailCodeSchema = z.object({ email: emailSchema })
 
 const loginPasswordSchema = z.string().min(1, 'validation.passwordRequired')
 
+/**
+ * 登录标识：邮箱 / 学号 / 工号三选一
+ *
+ * 三种标识的格式差异很大（邮箱含 @、学号与工号是编号），
+ * 因此只做长度与必填校验，具体是否存在交给后端判断，避免误伤合法编号。
+ */
+const identifierSchema = z
+  .string()
+  .trim()
+  .min(1, 'validation.identifierRequired')
+  .max(191, 'validation.identifierMax')
+
 /** 登录整表校验：只在提交时用，避免一失焦就把所有字段的错误都点亮 */
 export const loginSchema = z.object({
-  email: emailSchema,
+  identifier: identifierSchema,
   password: loginPasswordSchema,
 })
 
 /** 登录表单的字段级规则（配合 `lazyValidate` 使用） */
 export const loginFieldSchemas = {
-  email: emailSchema,
+  identifier: identifierSchema,
   password: loginPasswordSchema,
 } as const
 
 export type LoginFormValues = z.infer<typeof loginSchema>
 
-const displayNameSchema = z
+/**
+ * 真实姓名
+ *
+ * 毕设系统统一使用真名，不使用昵称或显示名：
+ * 允许中文、英文字母、间隔号与空格，2-50 个字符（与后端 realNameSchema 对齐）。
+ */
+const realNameSchema = z
   .string()
   .trim()
-  .min(2, 'validation.displayNameMin')
-  .max(30, 'validation.displayNameMax')
+  .min(2, 'validation.realNameMin')
+  .max(50, 'validation.realNameMax')
+  .regex(/^[\u4e00-\u9fa5A-Za-z·\s]+$/, 'validation.realNameFormat')
 
 const emailCodeSchema = z.string().trim().regex(EMAIL_CODE_PATTERN, 'validation.emailCodeFormat')
 
@@ -55,7 +74,7 @@ const confirmPasswordSchema = z.string().min(1, 'validation.confirmPasswordRequi
 /** 注册整表校验：提交时统一校验，并处理「两次密码不一致」这类跨字段规则 */
 export const registerSchema = z
   .object({
-    displayName: displayNameSchema,
+    realName: realNameSchema,
     email: emailSchema,
     emailCode: emailCodeSchema,
     password: registerPasswordSchema,
@@ -73,7 +92,7 @@ export const registerSchema = z
 
 /** 注册表单的字段级规则（配合 `lazyValidate` 使用） */
 export const registerFieldSchemas = {
-  displayName: displayNameSchema,
+  realName: realNameSchema,
   email: emailSchema,
   emailCode: emailCodeSchema,
   password: registerPasswordSchema,
@@ -81,3 +100,36 @@ export const registerFieldSchemas = {
 } as const
 
 export type RegisterFormValues = z.infer<typeof registerSchema>
+
+/**
+ * 个人资料表单校验
+ *
+ * 只校验「填了就合法」，全部留空是允许的（提交时会被过滤掉）。
+ */
+const optionalPhoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === '' || /^[\d+\-\s()]{6,20}$/.test(value), {
+    message: 'validation.phoneFormat',
+  })
+
+const optionalAvatarSchema = z
+  .string()
+  .trim()
+  .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), {
+    message: 'validation.avatarUrlFormat',
+  })
+
+export const profileSchema = z.object({
+  realName: z.union([z.literal(''), realNameSchema]),
+  phone: optionalPhoneSchema,
+  avatarUrl: optionalAvatarSchema,
+})
+
+export const profileFieldSchemas = {
+  realName: z.union([z.literal(''), realNameSchema]),
+  phone: optionalPhoneSchema,
+  avatarUrl: optionalAvatarSchema,
+} as const
+
+export type ProfileFormValues = z.infer<typeof profileSchema>

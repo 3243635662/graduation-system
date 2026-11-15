@@ -64,16 +64,19 @@ interface RoleRow {
   updatedAt: Date
 }
 
+/**
+ * 当前授权行：user_roles 只保存「此刻有效」的授权，撤销即删除行，
+ * 因此这里没有 revokedAt / revocationReason 字段。
+ */
 interface AssignmentRow {
   id: string
   userId: string
   roleId: string
   scopeOrgUnitId: string | null
+  scopeKey: string
   assignedById: string | null
-  revokedById: string | null
   validFrom: Date
   validUntil: Date | null
-  revokedAt: Date | null
   createdAt: Date
 }
 
@@ -158,103 +161,97 @@ const USERS = [
   {
     id: '10000000-0000-4000-8000-000000000001',
     email: 'school@example.com',
-    displayName: '校管理员',
+    realName: '校管理员',
     status: 'ACTIVE' as const,
     deletedAt: null,
   },
   {
     id: '10000000-0000-4000-8000-000000000002',
     email: 'dept@example.com',
-    displayName: '院系管理员',
+    realName: '院系管理员',
     status: 'ACTIVE' as const,
     deletedAt: null,
   },
   {
     id: '10000000-0000-4000-8000-000000000003',
     email: 'major@example.com',
-    displayName: '专业管理员',
+    realName: '专业管理员',
     status: 'ACTIVE' as const,
     deletedAt: null,
   },
   {
     id: '10000000-0000-4000-8000-000000000004',
     email: 'student@example.com',
-    displayName: '学生',
+    realName: '学生',
     status: 'ACTIVE' as const,
     deletedAt: null,
   },
   {
     id: '10000000-0000-4000-8000-000000000005',
     email: 'outside@example.com',
-    displayName: '外院学生',
+    realName: '外院学生',
     status: 'ACTIVE' as const,
     deletedAt: null,
   },
 ]
 
 let sequence = 0
+
+/** 范围键规范化：组织角色取组织节点 ID，其余统一 GLOBAL */
+function assignmentRow(
+  id: string,
+  userId: string,
+  roleId: string,
+  scopeOrgUnitId: string | null,
+): AssignmentRow {
+  return {
+    id,
+    userId,
+    roleId,
+    scopeOrgUnitId,
+    scopeKey: scopeOrgUnitId ?? 'GLOBAL',
+    assignedById: null,
+    validFrom: NOW,
+    validUntil: null,
+    createdAt: NOW,
+  }
+}
+
 const ASSIGNMENTS: AssignmentRow[] = [
-  {
-    id: '20000000-0000-4000-8000-000000000001',
-    userId: '10000000-0000-4000-8000-000000000001',
-    roleId: 'role-SCHOOL_ADMIN',
-    scopeOrgUnitId: '00000000-0000-4000-8000-000000000001',
-    assignedById: null,
-    revokedById: null,
-    validFrom: NOW,
-    validUntil: null,
-    revokedAt: null,
-    createdAt: NOW,
-  },
-  {
-    id: '20000000-0000-4000-8000-000000000002',
-    userId: '10000000-0000-4000-8000-000000000002',
-    roleId: 'role-DEPARTMENT_ADMIN',
-    scopeOrgUnitId: '00000000-0000-4000-8000-000000000002',
-    assignedById: null,
-    revokedById: null,
-    validFrom: NOW,
-    validUntil: null,
-    revokedAt: null,
-    createdAt: NOW,
-  },
-  {
-    id: '20000000-0000-4000-8000-000000000003',
-    userId: '10000000-0000-4000-8000-000000000003',
-    roleId: 'role-MAJOR_ADMIN',
-    scopeOrgUnitId: '00000000-0000-4000-8000-000000000004',
-    assignedById: null,
-    revokedById: null,
-    validFrom: NOW,
-    validUntil: null,
-    revokedAt: null,
-    createdAt: NOW,
-  },
-  {
-    id: '20000000-0000-4000-8000-000000000004',
-    userId: '10000000-0000-4000-8000-000000000004',
-    roleId: 'role-STUDENT',
-    scopeOrgUnitId: null,
-    assignedById: null,
-    revokedById: null,
-    validFrom: NOW,
-    validUntil: null,
-    revokedAt: null,
-    createdAt: NOW,
-  },
-  {
-    id: '20000000-0000-4000-8000-000000000005',
-    userId: '10000000-0000-4000-8000-000000000005',
-    roleId: 'role-STUDENT',
-    scopeOrgUnitId: null,
-    assignedById: null,
-    revokedById: null,
-    validFrom: NOW,
-    validUntil: null,
-    revokedAt: null,
-    createdAt: NOW,
-  },
+  assignmentRow(
+    '20000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000001',
+    'role-SCHOOL_ADMIN',
+    '00000000-0000-4000-8000-000000000001',
+  ),
+  assignmentRow(
+    '20000000-0000-4000-8000-000000000002',
+    '10000000-0000-4000-8000-000000000002',
+    'role-DEPARTMENT_ADMIN',
+    '00000000-0000-4000-8000-000000000002',
+  ),
+  assignmentRow(
+    '20000000-0000-4000-8000-000000000003',
+    '10000000-0000-4000-8000-000000000003',
+    'role-MAJOR_ADMIN',
+    '00000000-0000-4000-8000-000000000004',
+  ),
+  assignmentRow(
+    '20000000-0000-4000-8000-000000000004',
+    '10000000-0000-4000-8000-000000000004',
+    'role-STUDENT',
+    null,
+  ),
+  assignmentRow(
+    '20000000-0000-4000-8000-000000000005',
+    '10000000-0000-4000-8000-000000000005',
+    'role-STUDENT',
+    null,
+  ),
 ]
+
+/** 撤销历史：只追加，用于验证「删除当前行前先写快照」 */
+const HISTORY: Array<Record<string, unknown>> = []
 
 /** 菜单行：id 直接使用 code，便于断言 */
 function flattenMenus(
@@ -323,8 +320,7 @@ function matchesAssignment(
 ): boolean {
   if (typeof where['userId'] === 'string' && row.userId !== where['userId']) return false
 
-  if (where['revokedAt'] === null && row.revokedAt !== null) return false
-
+  // 当前授权表只保存有效授权：撤销即删除行，无需再判断 revokedAt
   if (typeof where['roleId'] === 'string' && row.roleId !== where['roleId']) return false
 
   if ('scopeOrgUnitId' in where) {
@@ -451,16 +447,30 @@ function createPrismaFake() {
         return row ? decorateAssignment(row) : null
       },
       async create({ data }: { data: Record<string, unknown> }) {
+        const scopeOrgUnitId = (data['scopeOrgUnitId'] as string | null | undefined) ?? null
+        const scopeKey = String(data['scopeKey'])
+
+        // 唯一键 uk_user_role_scope(userId, roleId, scopeKey)：重复分配必须由数据库兜底
+        const duplicated = ASSIGNMENTS.some(
+          (item) =>
+            item.userId === String(data['userId']) &&
+            item.roleId === String(data['roleId']) &&
+            item.scopeKey === scopeKey,
+        )
+
+        if (duplicated) {
+          throw Object.assign(new Error('unique'), { code: 'P2002' })
+        }
+
         const row: AssignmentRow = {
           id: `30000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`,
           userId: String(data['userId']),
           roleId: String(data['roleId']),
-          scopeOrgUnitId: (data['scopeOrgUnitId'] as string | null | undefined) ?? null,
+          scopeOrgUnitId,
+          scopeKey,
           assignedById: (data['assignedById'] as string | null | undefined) ?? null,
-          revokedById: null,
           validFrom: data['validFrom'] as Date,
           validUntil: (data['validUntil'] as Date | null | undefined) ?? null,
-          revokedAt: null,
           createdAt: new Date(),
         }
 
@@ -468,23 +478,25 @@ function createPrismaFake() {
 
         return decorateAssignment(row)
       },
-      async updateMany({
-        where,
-        data,
-      }: {
-        where: { id: string; revokedAt: null }
-        data: Record<string, unknown>
-      }) {
-        const row = ASSIGNMENTS.find((item) => item.id === where.id && item.revokedAt === null)
+      async deleteMany({ where }: { where: { id: string } }) {
+        const index = ASSIGNMENTS.findIndex((item) => item.id === where.id)
 
-        if (!row) return { count: 0 }
+        if (index < 0) return { count: 0 }
 
-        Object.assign(row, data)
+        ASSIGNMENTS.splice(index, 1)
 
         return { count: 1 }
       },
       async count({ where }: { where: { userId: string } }) {
         return ASSIGNMENTS.filter((item) => item.userId === where.userId).length
+      },
+    },
+    // 撤销 = 先写不可变历史快照，再删除当前授权行
+    userRoleHistory: {
+      async create({ data }: { data: Record<string, unknown> }) {
+        HISTORY.push(data)
+
+        return { id: `history-${HISTORY.length}`, ...data }
       },
     },
     organizationUnit: {
@@ -804,7 +816,8 @@ describe('RBAC 授权与数据范围 (e2e)', () => {
         .set(auth('10000000-0000-4000-8000-000000000002'))
         .expect(200)
 
-      expect(JSON.stringify(menus.body.data)).toContain('MAJOR_MANAGEMENT')
+      expect(JSON.stringify(menus.body.data)).toContain('ORGANIZATION_TREE')
+      expect(JSON.stringify(menus.body.data)).toContain('STUDENT_PROFILES')
     })
 
     it('专业停用后：班级从可见树中消失且无法直接访问', async () => {
@@ -905,17 +918,17 @@ describe('RBAC 授权与数据范围 (e2e)', () => {
         .expect(403)
     })
 
-    it('分配与撤销会提升菜单缓存 generation，并立即影响菜单结果', async () => {
+    it('分配与撤销会提升菜单缓存 generation，并立即影响授权列表', async () => {
       const versionKey = `${KEY_PREFIX}:version`
+      const studentId = '10000000-0000-4000-8000-000000000004'
 
       const before = await request(app.getHttpServer())
         .get(`${api}/menus/current`)
-        .set(auth('10000000-0000-4000-8000-000000000004'))
+        .set(auth(studentId))
         .expect(200)
 
-      const beforeCodes = JSON.stringify(before.body.data)
-
-      expect(beforeCodes).not.toContain('PROCESS_MONITOR')
+      // Phase 1 学生只有个人入口
+      expect(JSON.stringify(before.body.data)).toContain('MY_PROFILE')
 
       const generationBefore = Number(redisFake.store.get(versionKey) ?? '0')
 
@@ -923,7 +936,7 @@ describe('RBAC 授权与数据范围 (e2e)', () => {
         .post(`${api}/role-assignments`)
         .set(auth('10000000-0000-4000-8000-000000000002'))
         .send({
-          userId: '10000000-0000-4000-8000-000000000004',
+          userId: studentId,
           roleCode: 'CLASS_COORDINATOR',
           scopeOrgUnitId: '00000000-0000-4000-8000-000000000005',
         })
@@ -932,33 +945,39 @@ describe('RBAC 授权与数据范围 (e2e)', () => {
       expect(Number(redisFake.store.get(versionKey))).toBeGreaterThan(generationBefore)
 
       const afterAssign = await request(app.getHttpServer())
-        .get(`${api}/menus/current`)
-        .set(auth('10000000-0000-4000-8000-000000000004'))
+        .get(`${api}/role-assignments/users/${studentId}`)
+        .set(auth('10000000-0000-4000-8000-000000000002'))
         .expect(200)
 
-      const assignedMenus = JSON.stringify(afterAssign.body.data)
+      expect(afterAssign.body.data.map((item: { roleCode: string }) => item.roleCode)).toContain(
+        'CLASS_COORDINATOR',
+      )
 
-      // 学生个人页面与班级协管入口必须同时存在（多角色菜单合并）
-      expect(assignedMenus).toContain('PROCESS_MONITOR')
-      expect(assignedMenus).toContain('MY_TOPIC')
-      expect(assignedMenus).toContain('MY_PROJECT')
-      expect(assignedMenus).toContain('THESIS_SUBMISSION')
+      const generationBeforeRevoke = Number(redisFake.store.get(versionKey) ?? '0')
 
-      await request(app.getHttpServer())
+      const revoked = await request(app.getHttpServer())
         .delete(`${api}/role-assignments/${created.body.data.id}`)
         .set(auth('10000000-0000-4000-8000-000000000002'))
         .expect(200)
 
+      // 撤销接口返回被撤销的授权行 ID
+      expect(revoked.body.data).toBe(created.body.data.id)
+      expect(Number(redisFake.store.get(versionKey))).toBeGreaterThan(generationBeforeRevoke)
+
       const afterRevoke = await request(app.getHttpServer())
-        .get(`${api}/menus/current`)
-        .set(auth('10000000-0000-4000-8000-000000000004'))
+        .get(`${api}/role-assignments/users/${studentId}`)
+        .set(auth('10000000-0000-4000-8000-000000000002'))
         .expect(200)
 
-      const revokedMenus = JSON.stringify(afterRevoke.body.data)
+      expect(afterRevoke.body.data).toEqual([])
 
-      expect(revokedMenus).not.toContain('PROCESS_MONITOR')
       // 撤销协管员后学生个人菜单仍然保留
-      expect(revokedMenus).toContain('MY_TOPIC')
+      const menus = await request(app.getHttpServer())
+        .get(`${api}/menus/current`)
+        .set(auth(studentId))
+        .expect(200)
+
+      expect(JSON.stringify(menus.body.data)).toContain('MY_PROFILE')
     })
 
     it('不能撤销自己的角色分配', async () => {
