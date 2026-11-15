@@ -32,7 +32,9 @@ export interface SessionResult {
 interface UserProfileRecord {
   id: string
   email: string
-  displayName: string
+  phone: string | null
+  realName: string
+  avatarUrl: string | null
   status: 'ACTIVE' | 'DISABLED' | 'LOCKED'
 }
 
@@ -42,12 +44,12 @@ type UserWithRoles = UserProfileRecord & {
     scopeOrgUnitId: string | null
     validFrom: Date
     validUntil: Date | null
-    revokedAt: Date | null
     role: {
       id: string
       code: string
       name: string
       status: 'ACTIVE' | 'DISABLED'
+      rolePermissions: Array<{ permission: { code: string } }>
     }
     scopeOrgUnit: { name: string; type: string } | null
   }>
@@ -93,7 +95,6 @@ function toEffectiveRoles(user: UserWithRoles, now = new Date()): RoleSummary[] 
   const roles = new Map<string, RoleSummary>()
 
   for (const item of user.userRoles) {
-    if (item.revokedAt) continue
     if (item.validFrom.getTime() > now.getTime()) continue
     if (item.validUntil && item.validUntil.getTime() <= now.getTime()) continue
     if (item.role.status !== 'ACTIVE') continue
@@ -117,33 +118,70 @@ function toEffectiveRoles(user: UserWithRoles, now = new Date()): RoleSummary[] 
   return [...roles.values()]
 }
 
-function toAuthUser(user: UserProfileRecord, roles: RoleSummary[]): AuthUser {
+/**
+ * 汇总当前有效角色的功能权限编码。
+ *
+ * 这里只做「角色模板 → 权限编码」的并集，用于 /auth/me 供前端展示入口；
+ * 组织范围、协管资格等实时校验仍由 PermissionsGuard 在每次请求时完成。
+ */
+function toPermissionCodes(user: UserWithRoles, now = new Date()): string[] {
+  const codes = new Set<string>()
+
+  for (const item of user.userRoles) {
+    if (item.validFrom.getTime() > now.getTime()) continue
+    if (item.validUntil && item.validUntil.getTime() <= now.getTime()) continue
+    if (item.role.status !== 'ACTIVE') continue
+
+    for (const rolePermission of item.role.rolePermissions) {
+      codes.add(rolePermission.permission.code)
+    }
+  }
+
+  return [...codes].sort()
+}
+
+function toAuthUser(
+  user: UserProfileRecord,
+  roles: RoleSummary[],
+  permissions: string[],
+): AuthUser {
   return {
     id: user.id,
     email: user.email,
-    displayName: user.displayName,
+    phone: user.phone,
+    realName: user.realName,
+    avatarUrl: user.avatarUrl,
     status: user.status,
     roles,
+    permissions,
   }
 }
 
 const userProfileSelect = {
   id: true,
   email: true,
-  displayName: true,
+  phone: true,
+  realName: true,
+  avatarUrl: true,
   status: true,
   userRoles: {
     select: {
       scopeOrgUnitId: true,
       validFrom: true,
       validUntil: true,
-      revokedAt: true,
       role: {
         select: {
           id: true,
           code: true,
           name: true,
           status: true,
+          rolePermissions: {
+            select: {
+              permission: {
+                select: { code: true },
+              },
+            },
+          },
         },
       },
       scopeOrgUnit: {
@@ -155,6 +193,9 @@ const userProfileSelect = {
     },
   },
 } as const
+
+/** 登录校验所需的用户结构（含密码哈希，仅用于本地比对，绝不出参） */
+type UserWithPassword = UserWithRoles & { passwordHash: string }
 
 @Injectable()
 export class AuthService {
@@ -236,13 +277,16 @@ export class AuthService {
         data: {
           email: input.email,
           passwordHash,
-          displayName: input.displayName,
+          realName: input.realName,
+          emailVerifiedAt: new Date(),
           status: 'ACTIVE',
         },
         select: {
           id: true,
           email: true,
-          displayName: true,
+          phone: true,
+          realName: true,
+          avatarUrl: true,
           status: true,
         },
       })
@@ -251,6 +295,7 @@ export class AuthService {
         data: {
           userId: user.id,
           roleId: studentRole.id,
+          scopeKey: 'GLOBAL',
         },
       })
 
@@ -273,29 +318,23 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: refresh.token,
-      user: toAuthUser(result.user, [result.role]),
+      user: toAuthUser(result.user, [result.role], []),
     }
   }
 
   /**
    * 登录
    *
-   * 用户不存在与密码错误返回同一错误信息，避免邮箱枚举。
+   * 账号不存在与密码错误返回同一错误信息，避免账号枚举。
    */
   async login(input: LoginInput, meta: SessionMeta): Promise<SessionResult> {
-    const user = await this.prisma.user.findUnique({
-      where: { email: input.email },
-      select: {
-        ...userProfileSelect,
-        passwordHash: true,
-      },
-    })
+    const user = await this.resolveLoginUser(input.identifier)
 
     const passwordHash = user?.passwordHash ?? (await getDummyPasswordHash())
     const passwordValid = await verifyPassword(passwordHash, input.password)
 
     if (!user || !passwordValid) {
-      throw new UnauthorizedException('邮箱或密码错误')
+      throw new UnauthorizedException('账号或密码错误')
     }
 
     if (user.status !== 'ACTIVE') {
@@ -326,8 +365,64 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: refresh.token,
-      user: toAuthUser(user, toEffectiveRoles(user)),
+      user: toAuthUser(user, toEffectiveRoles(user), toPermissionCodes(user)),
     }
+  }
+
+  /**
+   * 按登录标识解析用户。
+   *
+   * 解析顺序：邮箱（含 @）→ 学号 → 教师工号 → 工作人员工号。
+   * 任一分支找不到都返回 null，由 login 统一返回「账号或密码错误」，
+   * 避免通过响应差异枚举系统内是否存在某个学号或工号。
+   */
+  private async resolveLoginUser(identifier: string): Promise<UserWithPassword | null> {
+    const value = identifier.trim()
+
+    if (!value) return null
+
+    if (value.includes('@')) {
+      return this.prisma.user.findUnique({
+        where: { email: value.toLowerCase() },
+        select: { ...userProfileSelect, passwordHash: true },
+      })
+    }
+
+    const student = await this.prisma.studentProfile.findUnique({
+      where: { studentNo: value },
+      select: { userId: true },
+    })
+
+    if (student) {
+      return this.findUserWithPassword(student.userId)
+    }
+
+    const teacher = await this.prisma.teacherProfile.findUnique({
+      where: { teacherNo: value },
+      select: { personnelProfile: { select: { userId: true } } },
+    })
+
+    if (teacher) {
+      return this.findUserWithPassword(teacher.personnelProfile.userId)
+    }
+
+    const personnel = await this.prisma.personnelProfile.findUnique({
+      where: { employeeNo: value },
+      select: { userId: true },
+    })
+
+    if (personnel) {
+      return this.findUserWithPassword(personnel.userId)
+    }
+
+    return null
+  }
+
+  private findUserWithPassword(userId: string): Promise<UserWithPassword | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { ...userProfileSelect, passwordHash: true },
+    })
   }
 
   /**
@@ -524,7 +619,7 @@ export class AuthService {
       throw this.tokenInvalid('用户不存在或已被删除')
     }
 
-    return toAuthUser(user, toEffectiveRoles(user))
+    return toAuthUser(user, toEffectiveRoles(user), toPermissionCodes(user))
   }
 
   private async revokeSession(sessionId: string): Promise<void> {
@@ -545,7 +640,7 @@ export class AuthService {
     return {
       accessToken: this.tokenService.signAccessToken(userId, sessionId),
       refreshToken,
-      user: toAuthUser(user, toEffectiveRoles(user)),
+      user: toAuthUser(user, toEffectiveRoles(user), toPermissionCodes(user)),
     }
   }
 

@@ -84,12 +84,12 @@ export class CoordinatorOverrideService {
 
       if (!role) throw new NotFoundException('角色模板未初始化')
 
+      // UserRole 仅保存当前授权：存在即有效，撤销即删除
       const assignment = await tx.userRole.findFirst({
         where: {
           userId: input.userId,
           roleId: role.id,
           scopeOrgUnitId: input.classId,
-          revokedAt: null,
         },
         select: { id: true },
       })
@@ -100,6 +100,8 @@ export class CoordinatorOverrideService {
             userId: input.userId,
             roleId: role.id,
             scopeOrgUnitId: input.classId,
+            // 组织级授权：scopeKey 必须与 scopeOrgUnitId 一致（唯一键 uk_user_role_scope）
+            scopeKey: input.classId,
             assignedById: actorId,
             createdById: actorId,
           },
@@ -185,10 +187,10 @@ export class CoordinatorOverrideService {
       this.prisma.coordinatorQualificationOverride.findMany({
         where,
         include: {
-          user: { select: { id: true, displayName: true, email: true } },
+          user: { select: { id: true, realName: true, email: true } },
           class: { select: { id: true, name: true, code: true } },
-          grantedBy: { select: { id: true, displayName: true } },
-          revokedBy: { select: { id: true, displayName: true } },
+          grantedBy: { select: { id: true, realName: true } },
+          revokedBy: { select: { id: true, realName: true } },
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: (params.page - 1) * params.pageSize,
@@ -201,7 +203,7 @@ export class CoordinatorOverrideService {
       list: list.map((item) => ({
         id: item.id,
         userId: item.userId,
-        userName: item.user.displayName,
+        userName: item.user.realName,
         userEmail: item.user.email,
         classId: item.classId,
         className: item.class.name,
@@ -211,9 +213,9 @@ export class CoordinatorOverrideService {
         validUntil: item.validUntil,
         revokedAt: item.revokedAt,
         revokedById: item.revokedById,
-        revokedByName: item.revokedBy?.displayName ?? null,
+        revokedByName: item.revokedBy?.realName ?? null,
         grantedById: item.grantedById,
-        grantedByName: item.grantedBy.displayName,
+        grantedByName: item.grantedBy.realName,
         isEffective:
           item.revokedAt === null &&
           item.validFrom.getTime() <= now.getTime() &&
@@ -238,8 +240,8 @@ export class CoordinatorOverrideService {
             }),
       },
       include: {
-        user: { select: { id: true, displayName: true, email: true } },
-        grantedBy: { select: { id: true, displayName: true } },
+        user: { select: { id: true, realName: true, email: true } },
+        grantedBy: { select: { id: true, realName: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -249,10 +251,10 @@ export class CoordinatorOverrideService {
   private async assertSchoolAdmin(actorId: string, classId: string): Promise<void> {
     const now = new Date()
 
+    // UserRole 仅保存当前授权，撤销即删除，因此不再需要 revokedAt 过滤
     const assignments = await this.prisma.userRole.findMany({
       where: {
         userId: actorId,
-        revokedAt: null,
         validFrom: { lte: now },
         OR: [{ validUntil: null }, { validUntil: { gt: now } }],
         role: { code: 'SCHOOL_ADMIN', status: 'ACTIVE' },

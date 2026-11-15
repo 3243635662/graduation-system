@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { PrismaService } from '../../prisma/prisma.service.js'
+import type { AuditService } from '../audit/audit.service.js'
+import type { AuditRecordInput } from '../audit/audit.types.js'
 import type { OrganizationService } from '../rbac/organizations/organization.service.js'
 import { CoordinatorActorPolicy } from './coordinator-actor-policy.service.js'
 import { CoordinatorLifecycleService } from './coordinator-lifecycle.service.js'
@@ -89,6 +91,17 @@ const lifecycleStub = {
 const actorPolicyStub = {
   assertAllowed: async () => undefined,
 } as unknown as CoordinatorActorPolicy
+
+/** 审计写入只关心调用参数，落库行为由 audit.service.spec.ts 覆盖 */
+const auditRecords: AuditRecordInput[] = []
+
+const auditStub = {
+  record: async (input: AuditRecordInput) => {
+    auditRecords.push(input)
+
+    return { id: `audit-${auditRecords.length}`, createdAt: new Date() }
+  },
+} as unknown as AuditService
 
 function matchesTimeWindow(row: Row, where: Row): boolean {
   if (where['revokedAt'] === null && row['revokedAt'] !== null) return false
@@ -349,7 +362,13 @@ describe('StudentProfileService', () => {
 
   beforeEach(() => {
     fake = createPrismaFake()
-    service = new StudentProfileService(fake.prisma, createOrganizationFake(), lifecycleStub)
+    auditRecords.length = 0
+    service = new StudentProfileService(
+      fake.prisma,
+      createOrganizationFake(),
+      lifecycleStub,
+      auditStub,
+    )
   })
 
   it('允许在没有 User 的情况下建立学生档案', async () => {
@@ -453,6 +472,28 @@ describe('StudentProfileService', () => {
     )
 
     expect(moved.classId).toBe('org-class-2')
+  })
+
+  it('转班成功后在同一事务写入最小字段审计', async () => {
+    const profile = await service.create(
+      { studentNo: '2024010', name: 'H', classId: 'org-class' },
+      'actor-1',
+    )
+
+    await service.transfer(String(profile.id), 'org-class-2', '专业内调整', 'actor-1', 'org-class')
+
+    expect(auditRecords).toHaveLength(1)
+    expect(auditRecords[0]).toMatchObject({
+      actor: { type: 'USER', userId: 'actor-1' },
+      action: 'student.profile.transfer',
+      targetType: 'STUDENT_PROFILE',
+      targetId: String(profile.id),
+      scopeOrgUnitId: 'org-class-2',
+      source: 'WEB',
+      before: { classId: 'org-class' },
+      after: { classId: 'org-class-2' },
+      reason: '专业内调整',
+    })
   })
 })
 

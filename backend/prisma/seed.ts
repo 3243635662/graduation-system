@@ -2,7 +2,7 @@ import 'dotenv/config'
 import {
   DEFAULT_MENU_CACHE_KEY_PREFIX,
   DEFAULT_MENU_TREE,
-  LEGACY_SUPER_ADMIN_ROLE_CODE,
+  PHASE1_MENU_PAGE_CODES,
   PRESET_PERMISSIONS,
   PRESET_ROLES,
   ROLE_MENU_CODES,
@@ -21,12 +21,7 @@ import { Prisma, PrismaClient } from '../generated/prisma/client.js'
 // 1. 环境变量检查
 // ==========================================
 
-const requiredEnv = [
-  'DATABASE_URL',
-  'SUPER_ADMIN_EMAIL',
-  'SUPER_ADMIN_PASSWORD',
-  'SUPER_ADMIN_DISPLAY_NAME',
-] as const
+const requiredEnv = ['DATABASE_URL', 'SUPER_ADMIN_EMAIL', 'SUPER_ADMIN_PASSWORD'] as const
 
 for (const key of requiredEnv) {
   if (!process.env[key]) {
@@ -37,14 +32,17 @@ for (const key of requiredEnv) {
 const databaseUrl = process.env['DATABASE_URL']!
 const adminEmail = process.env['SUPER_ADMIN_EMAIL']!
 const adminPassword = process.env['SUPER_ADMIN_PASSWORD']!
-const adminDisplayName = process.env['SUPER_ADMIN_DISPLAY_NAME']!
-
 /**
- * 学校根组织信息。
+ * 管理员真名。
  *
- * 单学校系统只允许一个 SCHOOL 根节点；已存在时保留管理员维护过的名称，
- * 不会用环境变量覆盖，避免 Seed 篡改线上组织数据。
+ * Phase 1 起不再使用 displayName，统一为 realName；
+ * 兼容旧 .env 的 SUPER_ADMIN_DISPLAY_NAME，避免升级时直接失败。
  */
+const adminRealName =
+  process.env['SUPER_ADMIN_REAL_NAME']?.trim() ||
+  process.env['SUPER_ADMIN_DISPLAY_NAME']?.trim() ||
+  '系统管理员'
+
 const schoolName = process.env['SCHOOL_NAME']?.trim() || '示范大学'
 const schoolCode = process.env['SCHOOL_CODE']?.trim() || 'SCHOOL-ROOT'
 
@@ -57,23 +55,7 @@ const prisma = new PrismaClient({
 })
 
 // ==========================================
-// 3. 预置角色与授权矩阵（唯一来源：@graduation/shared）
-// ==========================================
-//
-// 角色是职责模板，彼此平级，不存在继承关系。
-// 管理边界由 UserRole.scopeOrgUnitId 决定，而不是角色层级。
-// 菜单矩阵、权限矩阵与角色定义全部维护在 shared 的 constants/rbac.ts，
-// Seed 只负责把它们幂等写入数据库。
-//
-// 旧版 SUPER_ADMIN 不在七角色之列：它的角色行保留用于审计，
-// 但状态改为 DISABLED，且不再产生任何新的分配。
-
-// ==========================================
-// 4. 角色菜单 / 权限分配校验
-// ==========================================
-
-// ==========================================
-// 5. 菜单树工具
+// 3. 菜单树工具与校验
 // ==========================================
 
 interface MenuNodeStats {
@@ -122,6 +104,9 @@ function assertMenuTree(nodes: MenuTreeNode[]) {
       if (node.componentKey) {
         throw new Error(`菜单 ${node.code} 是 DIRECTORY，componentKey 必须为空`)
       }
+      if (!node.children?.length) {
+        throw new Error(`菜单 ${node.code} 是 DIRECTORY，但没有子节点`)
+      }
     }
 
     if (node.children?.length) {
@@ -149,23 +134,13 @@ function collectPageCodes(nodes: MenuTreeNode[]): Set<string> {
   return codes
 }
 
-/** 只允许学生拥有的个人业务页面 */
-const STUDENT_ONLY_PAGES = ['MY_TOPIC', 'MY_PROJECT', 'THESIS_SUBMISSION'] as const
-
-/** 不属于班级协管员职责的管理页面 */
-const COORDINATOR_FORBIDDEN_PAGES = [
-  'USER_MANAGEMENT',
-  'ROLE_MANAGEMENT',
-  'MENU_MANAGEMENT',
-  'DEPARTMENT_MANAGEMENT',
-  'MAJOR_MANAGEMENT',
-] as const
-
 /**
  * 校验角色菜单矩阵，防止共享常量被误改。
  *
- * 这里校验的是业务原则，而不是「数量必须等于某个数字」：
- * 后续为协管员新增专属页面时不需要修改本函数。
+ * 校验的是业务原则而非固定数量：
+ * - 角色必须与预置角色一一对应；
+ * - 引用的页面必须存在于菜单树；
+ * - 只有学生角色可以拥有学生个人页面（Phase 1 暂无，保留规则）。
  */
 function assertRoleMenuAssignments(pageCodes: Set<string>) {
   const roleCodes = Object.keys(ROLE_MENU_CODES) as RoleCode[]
@@ -187,37 +162,28 @@ function assertRoleMenuAssignments(pageCodes: Set<string>) {
       }
     }
 
-    if (roleCode !== RoleCode.STUDENT) {
-      for (const code of STUDENT_ONLY_PAGES) {
-        if (menuCodes.includes(code)) {
-          throw new Error(`非学生角色 ${roleCode} 不能拥有学生个人业务页面 ${code}`)
-        }
+    if (roleCode === RoleCode.STUDENT) {
+      const forbidden = menuCodes.filter((code) => code !== 'DASHBOARD' && code !== 'MY_PROFILE')
+      if (forbidden.length > 0) {
+        throw new Error(`学生角色不能拥有管理页面：${forbidden.join(', ')}`)
       }
     }
+  }
+}
 
-    if (roleCode !== RoleCode.TEACHER && menuCodes.includes('GUIDANCE_STUDENTS')) {
-      throw new Error(`只有教师角色可以拥有指导页面，冲突角色：${roleCode}`)
-    }
+/** 校验 Phase 1 菜单白名单覆盖了菜单树中的所有页面 */
+function assertPhase1Coverage(pageCodes: Set<string>) {
+  const allowed = new Set<string>(PHASE1_MENU_PAGE_CODES)
 
-    if (roleCode === RoleCode.CLASS_COORDINATOR) {
-      for (const code of COORDINATOR_FORBIDDEN_PAGES) {
-        if (menuCodes.includes(code)) {
-          throw new Error(`班级协管员不能拥有管理页面 ${code}`)
-        }
-      }
-    }
-
-    if (
-      roleCode === RoleCode.STUDENT &&
-      menuCodes.some((code) => code.includes('REVIEW') || code === 'USER_MANAGEMENT')
-    ) {
-      throw new Error('学生角色不能拥有审核或用户管理页面')
+  for (const code of pageCodes) {
+    if (!allowed.has(code)) {
+      throw new Error(`菜单页面 ${code} 不在 Phase 1 白名单内，请先实现对应接口`)
     }
   }
 }
 
 // ==========================================
-// 6. 菜单同步
+// 4. 菜单同步
 // ==========================================
 
 interface MenuSyncContext {
@@ -282,36 +248,34 @@ async function syncMenuTree(
 }
 
 // ==========================================
-// 7. Seed 主流程
+// 5. Seed 主流程
 // ==========================================
 //
 // 明确不提供「清空权限数据」的开关：权限与角色关联只能增量维护，
 // 任何全量删除都会让管理员已有的授权静默丢失。
 
 async function main() {
-  console.log('开始初始化基础数据...')
+  console.log('开始初始化 Phase 1 基础数据...')
 
-  // 7.1 校验共享菜单树与角色分配表
   assertMenuTree(DEFAULT_MENU_TREE)
 
   const menuStats = collectMenuStats(DEFAULT_MENU_TREE)
   const pageCodeSet = collectPageCodes(DEFAULT_MENU_TREE)
 
   assertRoleMenuAssignments(pageCodeSet)
+  assertPhase1Coverage(pageCodeSet)
 
   console.log(
     `菜单树校验通过：共 ${menuStats.codes.length} 个节点（PAGE ${menuStats.pages} / DIRECTORY ${menuStats.directories}）`,
   )
 
-  // 8.2 密码只在首次创建时生效，重复执行不会重置
   const passwordHash = await argon2.hash(adminPassword, {
     type: argon2.argon2id,
   })
 
-  // 8.3 单个事务内完成角色、账号、菜单与角色菜单关联
   const summary = await prisma.$transaction(
     async (tx) => {
-      // 七个预置角色：职责平级，dataScope 只描述范围维度
+      // 5.1 七个预置角色：职责平级，dataScope 只描述范围维度
       const roleIdByCode = new Map<RoleCode, string>()
 
       for (const role of PRESET_ROLES) {
@@ -337,32 +301,22 @@ async function main() {
         roleIdByCode.set(role.code, record.id)
       }
 
-      /**
-       * 旧 SUPER_ADMIN 角色模板：保留行与其历史 RoleMenu 关联用于审计，
-       * 只标记为停用，绝不删除，避免丢失「迁移前授权过什么」的证据。
-       */
-      const legacyRole = await tx.role.updateMany({
-        where: { code: LEGACY_SUPER_ADMIN_ROLE_CODE },
-        data: { status: 'DISABLED' },
-      })
-
-      // 超级管理员账号（保留原密码）
+      // 5.2 学校管理员账号：密码只在首次创建时生效
       const admin = await tx.user.upsert({
         where: { email: adminEmail },
         create: {
           email: adminEmail,
           passwordHash,
-          displayName: adminDisplayName,
+          realName: adminRealName,
+          emailVerifiedAt: new Date(),
           status: 'ACTIVE',
         },
-        update: {},
+        update: {
+          realName: adminRealName,
+        },
       })
 
-      /**
-       * 学校根组织（单学校系统只允许一个 SCHOOL 节点）
-       *
-       * 已存在时保留管理员维护过的名称与编码，不用环境变量覆盖。
-       */
+      // 5.3 学校根组织（单学校系统只允许一个 SCHOOL 节点）
       let school = await tx.organizationUnit.findFirst({
         where: { type: 'SCHOOL' },
         orderBy: { createdAt: 'asc' },
@@ -384,71 +338,29 @@ async function main() {
         })
       }
 
-      /**
-       * 旧 SUPER_ADMIN → SCHOOL_ADMIN 迁移（已确认：该账号是学校工作人员日常账号）
-       *
-       * 安全规则：
-       * 1. 不删除 User、不删除 AuthSession、不删除旧的 UserRole 记录。
-       * 2. 旧分配只标记 revokedAt / revokedById，保留完整历史。
-       * 3. 新分配绑定学校根组织，不给予学生个人业务菜单。
-       * 4. 幂等：已存在有效 SCHOOL_ADMIN 分配时不会重复创建；
-       *    管理员日后主动撤销后，Seed 也不会重新激活。
-       */
-      const legacyRoleRecord = await tx.role.findUnique({
-        where: { code: LEGACY_SUPER_ADMIN_ROLE_CODE },
-        select: { id: true },
-      })
-
-      let revokedLegacyAssignments = 0
-
-      if (legacyRoleRecord) {
-        const revoked = await tx.userRole.updateMany({
-          where: {
-            userId: admin.id,
-            roleId: legacyRoleRecord.id,
-            revokedAt: null,
-          },
-          data: {
-            revokedAt: new Date(),
-            revokedById: admin.id,
-          },
-        })
-
-        revokedLegacyAssignments = revoked.count
-      }
-
+      // 5.4 SCHOOL_ADMIN 授权（scopeKey = 学校根节点 ID，天然唯一）
       const schoolAdminRoleId = roleIdByCode.get(RoleCode.SCHOOL_ADMIN)!
 
-      const existingSchoolAdminAssignment = await tx.userRole.findFirst({
+      const existingSchoolAdminAssignment = await tx.userRole.findUnique({
         where: {
-          userId: admin.id,
-          roleId: schoolAdminRoleId,
-          scopeOrgUnitId: school.id,
-          revokedAt: null,
+          userId_roleId_scopeKey: {
+            userId: admin.id,
+            roleId: schoolAdminRoleId,
+            scopeKey: school.id,
+          },
         },
         select: { id: true },
       })
 
-      const adminAssignmentCount = await tx.userRole.count({
-        where: { userId: admin.id },
-      })
-
       let schoolAdminAssigned = false
 
-      /**
-       * 仅在两种情况下创建学校管理员分配：
-       * - 本次刚撤销了旧超管（真实迁移场景）
-       * - 该账号历史上一无所有（全新环境首次初始化）
-       */
-      if (
-        !existingSchoolAdminAssignment &&
-        (revokedLegacyAssignments > 0 || adminAssignmentCount === 0)
-      ) {
+      if (!existingSchoolAdminAssignment) {
         await tx.userRole.create({
           data: {
             userId: admin.id,
             roleId: schoolAdminRoleId,
             scopeOrgUnitId: school.id,
+            scopeKey: school.id,
             assignedById: admin.id,
             createdById: admin.id,
           },
@@ -457,7 +369,7 @@ async function main() {
         schoolAdminAssigned = true
       }
 
-      // 菜单树
+      // 5.5 菜单树
       const existingMenus = await tx.menu.findMany({ select: { code: true } })
 
       const menuContext: MenuSyncContext = {
@@ -478,7 +390,7 @@ async function main() {
         where: { menuId: { in: menuContext.directoryIds } },
       })
 
-      // 补齐默认角色菜单关联，已有 PAGE 关联保留
+      // 5.6 补齐默认角色菜单关联，已有 PAGE 关联保留
       const roleMenuData: Prisma.RoleMenuCreateManyInput[] = []
 
       for (const roleCode of Object.keys(ROLE_MENU_CODES) as RoleCode[]) {
@@ -508,7 +420,7 @@ async function main() {
         skipDuplicates: true,
       })
 
-      // 预置权限：按 code 作为稳定标识幂等 upsert
+      // 5.7 预置权限：按 code 作为稳定标识幂等 upsert
       const permissionIdByCode = new Map<string, string>()
 
       for (const permission of PRESET_PERMISSIONS) {
@@ -533,12 +445,7 @@ async function main() {
         permissionIdByCode.set(permission.code, record.id)
       }
 
-      /**
-       * 角色 → 权限：只增不删。
-       *
-       * Seed 不删除任何 RolePermission，避免覆盖管理员后续追加的授权；
-       * 需要收回权限时应通过管理操作显式执行。
-       */
+      // 5.8 角色 → 权限：只增不删，避免覆盖管理员后续追加的授权
       const rolePermissionData: Prisma.RolePermissionCreateManyInput[] = []
 
       for (const roleCode of Object.keys(ROLE_PERMISSION_CODES) as RoleCode[]) {
@@ -568,22 +475,22 @@ async function main() {
         skipDuplicates: true,
       })
 
-      const [roleMenuTotal, rolePermissionTotal, permissionTotal] = await Promise.all([
-        tx.roleMenu.count(),
-        tx.rolePermission.count(),
-        tx.permission.count(),
-      ])
+      const [roleMenuTotal, rolePermissionTotal, permissionTotal, userRoleTotal] =
+        await Promise.all([
+          tx.roleMenu.count(),
+          tx.rolePermission.count(),
+          tx.permission.count(),
+          tx.userRole.count(),
+        ])
 
       return {
         roleCount: roleIdByCode.size,
         adminEmail: admin.email,
+        adminRealName: admin.realName,
         schoolName: school.name,
         schoolCode: school.code,
         schoolCreated,
-        legacyRoleDisabled: legacyRole.count,
-        revokedLegacyAssignments,
         schoolAdminAssigned,
-        schoolAdminScopeName: school.name,
         menuCreated: menuContext.createdCount,
         menuUpdated: menuContext.updatedCount,
         pageCount: menuContext.pageIds.length,
@@ -594,6 +501,7 @@ async function main() {
         permissionTotal,
         createdRolePermissions: createdRolePermissions.count,
         rolePermissionTotal,
+        userRoleTotal,
       }
     },
     {
@@ -602,30 +510,18 @@ async function main() {
     },
   )
 
-  console.log(`角色初始化完成：${summary.roleCount} 个`)
+  console.log(`角色初始化完成：${summary.roleCount} 个（平台超管仅角色模板，不创建账号）`)
   console.log(
     `学校根组织已就绪：${summary.schoolName}（${summary.schoolCode}）${
       summary.schoolCreated ? '，本次新建' : '，沿用已有记录'
     }`,
   )
-  console.log(`管理员账号已就绪：${summary.adminEmail}（密码未重置）`)
-
-  if (summary.legacyRoleDisabled > 0) {
-    console.log('旧 SUPER_ADMIN 角色模板已停用（保留历史 RoleMenu 关联用于审计）')
-  }
-
-  if (summary.revokedLegacyAssignments > 0) {
-    console.log(
-      `旧 SUPER_ADMIN 分配已撤销 ${summary.revokedLegacyAssignments} 条（记录保留，未删除）`,
-    )
-  }
-
+  console.log(`学校管理员账号已就绪：${summary.adminEmail}（${summary.adminRealName}，密码未重置）`)
   console.log(
     summary.schoolAdminAssigned
-      ? `已分配 SCHOOL_ADMIN（范围：${summary.schoolAdminScopeName}）`
-      : 'SCHOOL_ADMIN 分配已存在或曾被人为撤销，本次未改动',
+      ? `已分配 SCHOOL_ADMIN（范围：${summary.schoolName}）`
+      : 'SCHOOL_ADMIN 分配已存在，本次未改动',
   )
-
   console.log(
     `菜单同步完成：共 ${summary.pageCount + summary.directoryCount} 个（PAGE ${summary.pageCount} / DIRECTORY ${summary.directoryCount}）`,
   )
@@ -637,6 +533,8 @@ async function main() {
   console.log(
     `权限初始化：${summary.permissionTotal} 个权限；角色权限本次新增 ${summary.createdRolePermissions} 条，当前总数 ${summary.rolePermissionTotal} 条`,
   )
+  console.log(`当前有效角色授权：${summary.userRoleTotal} 条`)
+
   const cacheInvalidated = await invalidateMenuCacheAfterSeed()
   console.log(
     cacheInvalidated
@@ -647,12 +545,12 @@ async function main() {
 }
 
 /**
- * Seed 结束后提升菜单缓存版本
+ * Seed 结束后提升菜单缓存版本。
  *
  * Seed 直接连接数据库、不经过 NestJS 的 DI 容器，因此这里用一次性 Redis 客户端
  * 执行与 MenuCacheInvalidatorService 相同的 INCR。
  *
- * 失败只告警不中断：Seed 已经提交，旧缓存由 TTL（600～660 秒）兜底回收。
+ * 失败只告警不中断：Seed 已经提交，旧缓存由 TTL 兜底回收。
  */
 async function invalidateMenuCacheAfterSeed(): Promise<boolean> {
   const keyPrefix = process.env['MENU_CACHE_KEY_PREFIX']?.trim() || DEFAULT_MENU_CACHE_KEY_PREFIX
@@ -696,7 +594,7 @@ async function invalidateMenuCacheAfterSeed(): Promise<boolean> {
 }
 
 // ==========================================
-// 9. 执行与资源释放
+// 6. 执行与资源释放
 // ==========================================
 
 main()

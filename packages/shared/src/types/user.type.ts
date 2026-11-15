@@ -4,38 +4,42 @@ export interface UserRoleSummary {
   code: string
   name: string
   scopeOrgUnitId: string | null
+  scopeKey: string
   scopeOrgUnitName: string | null
   scopeOrgUnitType: string | null
   validFrom: string
   validUntil: string | null
-  revokedAt: string | null
-  revocationReason: 'MANUAL' | 'QUALIFICATION_LOST' | null
-  /** 后端统一计算：未撤销 + 已生效 + 未过期 + 角色启用 + 组织路径有效 + 资格有效 */
+  /** 后端统一计算：已生效 + 未过期 + 角色启用 + 组织路径有效 + 资格有效 */
   isEffective: boolean
 }
 
 export interface UserStudentProfileSummary {
   id: string
   studentNo: string
+  /** 姓名统一取 User.realName，档案不再单独保存 */
   name: string
-  classId: string
-  className: string
+  /** 空表示尚未分班 */
+  classId: string | null
+  className: string | null
   enrollmentStatus: string
 }
 
 export interface UserTeacherProfileSummary {
   id: string
   teacherNo: string
-  departmentId: string
-  departmentName: string
-  employmentStatus: string
+  realName: string
+  organizationId: string
+  organizationName: string
+  organizationType: string
+  status: string
 }
 
 /** 用户列表/详情项（不包含任何认证敏感字段） */
 export interface UserListItem {
   id: string
-  displayName: string
+  realName: string
   email: string
+  phone: string | null
   status: 'ACTIVE' | 'DISABLED' | 'LOCKED'
   lastLoginAt: string | null
   createdAt: string

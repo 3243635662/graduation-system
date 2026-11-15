@@ -16,6 +16,19 @@ export const emailSchema = z
   .pipe(z.email('邮箱格式不正确'))
 
 /**
+ * 真实姓名。
+ *
+ * 毕设系统统一使用真名，不使用昵称或显示名：
+ * 允许中文、英文、间隔号与空格，2-50 个字符。
+ */
+export const realNameSchema = z
+  .string()
+  .trim()
+  .min(2, '真实姓名至少 2 个字符')
+  .max(50, '真实姓名最多 50 个字符')
+  .regex(/^[\u4e00-\u9fa5A-Za-z·\s]+$/, '真实姓名只能包含中文、英文字母、间隔号或空格')
+
+/**
  * 学生注册 Schema
  *
  * 密码不做 trim，避免改变用户实际密码。
@@ -24,11 +37,7 @@ export const emailSchema = z
  */
 export const registerSchema = z
   .object({
-    displayName: z
-      .string()
-      .trim()
-      .min(2, '显示名称至少 2 个字符')
-      .max(30, '显示名称最多 30 个字符'),
+    realName: realNameSchema,
     email: emailSchema,
     emailCode: z.string().trim().regex(EMAIL_CODE_PATTERN, '邮箱验证码必须是 6 位数字'),
     password: z.string().min(8, '密码至少 8 位').max(128, '密码最多 128 位'),

@@ -26,12 +26,6 @@ const roleSummarySchema: SchemaObject = {
     scopeOrgUnitType: { type: 'string', nullable: true },
     validFrom: { type: 'string', format: 'date-time' },
     validUntil: { type: 'string', format: 'date-time', nullable: true },
-    revokedAt: { type: 'string', format: 'date-time', nullable: true },
-    revocationReason: {
-      type: 'string',
-      nullable: true,
-      enum: ['MANUAL', 'QUALIFICATION_LOST'],
-    },
     isEffective: { type: 'boolean' },
   },
 }
@@ -40,7 +34,7 @@ const userItemSchema: SchemaObject = {
   type: 'object',
   properties: {
     id: { type: 'string', format: 'uuid' },
-    displayName: { type: 'string' },
+    realName: { type: 'string', description: '真实姓名（User.realName）' },
     email: { type: 'string', format: 'email' },
     status: { type: 'string', enum: ['ACTIVE', 'DISABLED', 'LOCKED'] },
     lastLoginAt: { type: 'string', format: 'date-time', nullable: true },
@@ -49,24 +43,28 @@ const userItemSchema: SchemaObject = {
     studentProfile: {
       type: 'object',
       nullable: true,
+      description: '学生档案摘要；未分班（classId 为空）的学生不返回该字段',
       properties: {
         id: { type: 'string', format: 'uuid' },
         studentNo: { type: 'string' },
-        name: { type: 'string' },
-        classId: { type: 'string', format: 'uuid' },
-        className: { type: 'string' },
+        name: { type: 'string', description: '取 User.realName' },
+        classId: { type: 'string', format: 'uuid', nullable: true },
+        className: { type: 'string', nullable: true },
         enrollmentStatus: { type: 'string' },
       },
     },
     teacherProfile: {
       type: 'object',
       nullable: true,
+      description: '教师档案摘要；所属组织取工作人员档案的正式组织归属',
       properties: {
         id: { type: 'string', format: 'uuid' },
         teacherNo: { type: 'string' },
-        departmentId: { type: 'string', format: 'uuid' },
-        departmentName: { type: 'string' },
-        employmentStatus: { type: 'string' },
+        realName: { type: 'string', description: '取 personnelProfile.user.realName' },
+        organizationId: { type: 'string', format: 'uuid' },
+        organizationName: { type: 'string' },
+        organizationType: { type: 'string', enum: ['SCHOOL', 'DEPARTMENT', 'MAJOR', 'CLASS'] },
+        status: { type: 'string', enum: ['ACTIVE', 'ON_LEAVE', 'LEFT'] },
       },
     },
   },
@@ -90,7 +88,7 @@ export class UsersController {
   @ApiOperation({
     summary: '分页查询授权范围内的用户账号',
     description:
-      '账号可见性由学生档案班级、教师档案院系、有效管理角色、有效辅导员分配共同决定；' +
+      '账号可见性由学生档案班级、工作人员档案正式组织归属、有效管理角色、有效辅导员分配共同决定；' +
       '查询参数只能收窄范围。',
   })
   @ApiSuccessResponse({

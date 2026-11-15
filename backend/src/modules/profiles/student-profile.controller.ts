@@ -20,7 +20,6 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator.js'
 import { AccessTokenGuard } from '../auth/guards/access-token.guard.js'
 import type { AuthUserContext } from '../auth/types/auth-user.type.js'
 import { OrganizationScopeService } from '../rbac/authorization/organization-scope.service.js'
-import { PermissionService } from '../rbac/authorization/permission.service.js'
 import { PermissionsGuard } from '../rbac/authorization/permissions.guard.js'
 import { RequirePermissions } from '../rbac/authorization/require-permissions.decorator.js'
 import { OrganizationService } from '../rbac/organizations/organization.service.js'
@@ -52,13 +51,12 @@ export class StudentProfileController {
   constructor(
     private readonly service: StudentProfileService,
     private readonly scopeService: OrganizationScopeService,
-    private readonly permissionService: PermissionService,
     private readonly organizationService: OrganizationService,
   ) {}
 
   @Get()
   @RequirePermissions(PermissionCode.STUDENT_PROFILE_READ)
-  @ApiOperation({ summary: '分页查询授权范围内的学生档案（含未注册账号）' })
+  @ApiOperation({ summary: '分页查询授权范围内的学生档案' })
   @ApiSuccessResponse({ description: '查询成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({ status: 401, code: 40101, message: '未登录或登录状态已失效' })
   @ApiErrorResponse({ status: 403, code: 40300, message: '没有访问该组织范围学生档案的权限' })
@@ -78,16 +76,16 @@ export class StudentProfileController {
       pageSize: query.pageSize,
       keyword: query.keyword,
       studentNo: query.studentNo,
-      name: query.name,
+      realName: query.realName,
       classId: query.classId,
       enrollmentStatus: query.enrollmentStatus,
-      hasAccount: query.hasAccount === undefined ? undefined : query.hasAccount === 'true',
+      unassignedOnly: query.unassignedOnly === 'true',
     })
   }
 
   @Get(':id')
   @RequirePermissions(PermissionCode.STUDENT_PROFILE_READ)
-  @ApiOperation({ summary: '学生档案详情（含转班历史）' })
+  @ApiOperation({ summary: '学生档案详情（含账号摘要与分班历史）' })
   @ApiErrorResponse({ status: 403, code: 40300, message: '没有访问该学生档案的权限' })
   @ApiErrorResponse({ status: 404, code: 40400, message: '学生档案不存在' })
   async findOne(
@@ -96,20 +94,18 @@ export class StudentProfileController {
   ) {
     const profile = await this.service.findById(params.id)
 
-    await this.scopeService.assertOrgUnitAccess(
+    await this.assertClassScope(
       authUser.userId,
       PermissionCode.STUDENT_PROFILE_READ,
       profile.classId,
     )
 
-    const includeAccount = await this.canReadAccount(authUser.userId, profile.classId)
-
-    return this.service.findDetail(params.id, includeAccount)
+    return this.service.findDetail(params.id)
   }
 
   @Post()
   @RequirePermissions(PermissionCode.STUDENT_PROFILE_CREATE)
-  @ApiOperation({ summary: '创建学生档案（不需要预先存在账号）' })
+  @ApiOperation({ summary: '为已存在的学生账号创建档案（可暂不分班）' })
   @ApiSuccessResponse({ status: 201, description: '创建成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({
     status: 400,
@@ -118,26 +114,31 @@ export class StudentProfileController {
     dataSchema: validationIssuesSchema,
   })
   @ApiErrorResponse({ status: 403, code: 40300, message: '没有在该班级创建学生档案的权限' })
-  @ApiErrorResponse({ status: 409, code: 40900, message: '学号已存在' })
+  @ApiErrorResponse({ status: 409, code: 40900, message: '学号或绑定用户已存在' })
   async create(
     @CurrentUser() authUser: AuthUserContext,
     @Body({ schema: createStudentProfileSchema }) body: CreateStudentProfileBody,
   ) {
-    await this.scopeService.assertOrgUnitAccess(
+    await this.assertClassScope(
       authUser.userId,
       PermissionCode.STUDENT_PROFILE_CREATE,
-      body.classId,
+      body.classId ?? null,
     )
 
     return this.service.create(
-      { name: body.name, studentNo: body.studentNo, classId: body.classId },
+      {
+        userId: body.userId,
+        studentNo: body.studentNo,
+        classId: body.classId ?? null,
+        enrollmentYear: body.enrollmentYear ?? null,
+      },
       authUser.userId,
     )
   }
 
   @Patch(':id')
   @RequirePermissions(PermissionCode.STUDENT_PROFILE_UPDATE)
-  @ApiOperation({ summary: '修改学生基础信息（不含学号、班级、学籍状态、账号绑定）' })
+  @ApiOperation({ summary: '修改学号与入学年份（班级变更走转班接口）' })
   @ApiSuccessResponse({ description: '修改成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({ status: 403, code: 40300, message: '没有修改该学生档案的权限' })
   async update(
@@ -147,25 +148,24 @@ export class StudentProfileController {
   ) {
     const profile = await this.service.findById(params.id)
 
-    await this.scopeService.assertOrgUnitAccess(
+    await this.assertClassScope(
       authUser.userId,
       PermissionCode.STUDENT_PROFILE_UPDATE,
       profile.classId,
     )
 
-    return this.service.updateBasic(params.id, body.name, authUser.userId)
+    return this.service.updateBasic(params.id, body, authUser.userId)
   }
 
   @Post(':id/transfer')
   @RequirePermissions(PermissionCode.STUDENT_PROFILE_TRANSFER)
   @ApiOperation({
-    summary: '学生转班',
-    description:
-      '原班级与目标班级都必须在操作者范围内；事务内锁档案与班级，写转班历史并重算协管资格。',
+    summary: '学生首次分班或转班',
+    description: '目标班级必须在操作者范围内；事务内锁档案与班级，写变更历史并重算协管资格。',
   })
-  @ApiSuccessResponse({ description: '转班成功', dataSchema: { type: 'object' } })
+  @ApiSuccessResponse({ description: '操作成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({ status: 400, code: 40001, message: '目标班级不合法或原班级与目标班级相同' })
-  @ApiErrorResponse({ status: 403, code: 40300, message: '没有在原班级或目标班级转班的权限' })
+  @ApiErrorResponse({ status: 403, code: 40300, message: '没有在原班级或目标班级操作的权限' })
   @ApiErrorResponse({ status: 409, code: 40900, message: '学生班级已被其他操作修改' })
   async transfer(
     @CurrentUser() authUser: AuthUserContext,
@@ -174,7 +174,7 @@ export class StudentProfileController {
   ) {
     const profile = await this.service.findById(params.id)
 
-    await this.scopeService.assertOrgUnitAccess(
+    await this.assertClassScope(
       authUser.userId,
       PermissionCode.STUDENT_PROFILE_TRANSFER,
       profile.classId,
@@ -186,7 +186,7 @@ export class StudentProfileController {
       body.targetClassId,
     )
 
-    return this.service.transfer(
+    return this.service.changeClass(
       params.id,
       body.targetClassId,
       body.reason,
@@ -207,7 +207,7 @@ export class StudentProfileController {
   ) {
     const profile = await this.service.findById(params.id)
 
-    await this.scopeService.assertOrgUnitAccess(
+    await this.assertClassScope(
       authUser.userId,
       PermissionCode.STUDENT_PROFILE_STATUS_UPDATE,
       profile.classId,
@@ -260,13 +260,28 @@ export class StudentProfileController {
     return [...allowed]
   }
 
-  /** 账号摘要必须单独拥有 user:read 且班级在用户可见范围内 */
-  private async canReadAccount(actorId: string, classId: string): Promise<boolean> {
-    const scope = await this.scopeService.resolve(actorId, PermissionCode.USER_READ)
+  /**
+   * 学生尚未分班时无法按班级校验范围，
+   * 此时退化为「必须拥有该权限下的任意可管理范围」，避免无权限者操作未分班学生。
+   */
+  private async assertClassScope(
+    actorId: string,
+    permissionCode: PermissionCode,
+    classId: string | null,
+  ): Promise<void> {
+    if (classId) {
+      await this.scopeService.assertOrgUnitAccess(actorId, permissionCode, classId)
+      return
+    }
 
-    if (scope.kind === 'ALL') return true
-    if (scope.kind === 'NONE') return false
+    const scope = await this.scopeService.resolve(actorId, permissionCode)
 
-    return scope.orgUnitIds.includes(classId)
+    if (scope.kind === 'NONE') {
+      throw new ForbiddenException({
+        code: 40300,
+        data: null,
+        message: '没有可用的学生档案管理组织范围',
+      })
+    }
   }
 }

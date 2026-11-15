@@ -49,7 +49,7 @@ export const roleSummarySchema: SchemaObject = {
 
 export const authUserSchema: SchemaObject = {
   type: 'object',
-  required: ['id', 'email', 'displayName', 'status', 'roles'],
+  required: ['id', 'email', 'realName', 'status', 'roles', 'permissions'],
   properties: {
     id: {
       type: 'string',
@@ -60,9 +60,23 @@ export const authUserSchema: SchemaObject = {
       format: 'email',
       example: 'student@example.com',
     },
-    displayName: {
+    phone: {
       type: 'string',
+      nullable: true,
+      description: '手机号；未登记时为 null',
+      example: '13800138000',
+    },
+    realName: {
+      type: 'string',
+      description: '真实姓名（系统统一使用真名，不使用昵称或显示名）',
       example: '张三',
+    },
+    avatarUrl: {
+      type: 'string',
+      format: 'uri',
+      nullable: true,
+      description: '头像地址；未上传时为 null',
+      example: 'https://cdn.example.com/avatars/zhangsan.png',
     },
     status: {
       type: 'string',
@@ -72,6 +86,11 @@ export const authUserSchema: SchemaObject = {
     roles: {
       type: 'array',
       items: roleSummarySchema,
+    },
+    permissions: {
+      type: 'array',
+      description: '当前有效角色的功能权限编码并集，仅用于前端控制入口可见性',
+      items: { type: 'string', example: 'student:profile:read' },
     },
   },
 }

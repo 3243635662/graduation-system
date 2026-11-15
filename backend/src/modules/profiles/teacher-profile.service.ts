@@ -1,39 +1,43 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 
-import type { EmploymentStatus } from '../../../generated/prisma/client.js'
+import type { EmploymentStatus, Prisma } from '../../../generated/prisma/client.js'
 import { PrismaService } from '../../prisma/prisma.service.js'
 import { OrganizationService } from '../rbac/organizations/organization.service.js'
 import { lockClassRows } from './coordinator-concurrency.js'
 import { CoordinatorLifecycleService } from './coordinator-lifecycle.service.js'
-import {
-  assertOrganizationNode,
-  assertUsableUser,
-  conflict,
-  isUniqueConstraintError,
-} from './profile-validation.js'
+import { conflict, isUniqueConstraintError } from './profile-validation.js'
 
 export interface CreateTeacherProfileInput {
-  userId: string
+  personnelProfileId: string
   teacherNo: string
-  departmentId: string
+  title?: string | null
+  professionalInfo?: string | null
+}
+
+export interface UpdateTeacherProfileInput {
+  teacherNo?: string
+  title?: string | null
+  professionalInfo?: string | null
 }
 
 export interface TeacherProfileListParams {
-  departmentIds: string[]
+  organizationIds: string[]
   page: number
   pageSize: number
   keyword?: string
   teacherNo?: string
-  name?: string
-  departmentId?: string
+  realName?: string
+  organizationId?: string
   employmentStatus?: EmploymentStatus
 }
 
 /**
  * 教师档案服务
  *
- * v1 只维护一个主要所属院系；跨院系工作通过指导/任职关系表达，
- * 不因任职关系自动扩大教师的数据权限。
+ * Phase 1 契约：
+ * - 教师身份挂在 PersonnelProfile 之下，不直接关联 User；
+ * - 所属组织统一取 personnelProfile.primaryOrganizationUnit；
+ * - 跨院系授课通过班主任任职等关系表达，不改变正式组织归属。
  */
 @Injectable()
 export class TeacherProfileService {
@@ -44,35 +48,36 @@ export class TeacherProfileService {
   ) {}
 
   async create(input: CreateTeacherProfileInput, actorId: string) {
-    await assertUsableUser(this.prisma, input.userId, '教师账号')
+    const personnel = await this.prisma.personnelProfile.findUnique({
+      where: { id: input.personnelProfileId },
+      select: { id: true, userId: true, primaryOrganizationUnitId: true },
+    })
+
+    if (!personnel) {
+      throw new NotFoundException('工作人员档案不存在，请先创建工作人员档案')
+    }
 
     const existing = await this.prisma.teacherProfile.findUnique({
-      where: { userId: input.userId },
+      where: { personnelProfileId: input.personnelProfileId },
       select: { id: true },
     })
 
-    if (existing) throw conflict('该用户已存在教师档案')
-
-    await assertOrganizationNode(
-      this.organizationService,
-      input.departmentId,
-      'DEPARTMENT',
-      '教师所属院系',
-    )
+    if (existing) throw conflict('该工作人员已存在教师身份')
 
     try {
       return await this.prisma.teacherProfile.create({
         data: {
-          userId: input.userId,
+          personnelProfileId: input.personnelProfileId,
           teacherNo: input.teacherNo.trim(),
-          departmentId: input.departmentId,
+          title: input.title?.trim() || null,
+          professionalInfo: input.professionalInfo?.trim() || null,
           createdById: actorId,
           updatedById: actorId,
         },
       })
     } catch (error) {
       if (isUniqueConstraintError(error)) {
-        throw new ConflictException('工号或教师账号已存在')
+        throw new ConflictException('教师编号已存在或该工作人员已有教师身份')
       }
 
       throw error
@@ -88,14 +93,15 @@ export class TeacherProfileService {
   }
 
   async findByUserId(userId: string) {
-    return this.prisma.teacherProfile.findUnique({ where: { userId } })
+    return this.prisma.teacherProfile.findFirst({
+      where: { personnelProfile: { userId } },
+    })
   }
 
   /**
    * 离职/复职
    *
-   * 状态变更后在同一事务内重算该教师所有班级的协管员资格；
-   * 失去全部资格的 CLASS_COORDINATOR 会被软撤销。
+   * 同时更新工作人员任职状态，并在同一事务内重算该教师所有班级的协管员资格。
    */
   async updateEmploymentStatus(
     profileId: string,
@@ -105,15 +111,20 @@ export class TeacherProfileService {
     const result = await this.prisma.$transaction(async (tx) => {
       const profile = await tx.teacherProfile.findUnique({
         where: { id: profileId },
-        select: { id: true, userId: true },
+        select: {
+          id: true,
+          personnelProfileId: true,
+          personnelProfile: { select: { userId: true } },
+        },
       })
 
       if (!profile) throw new NotFoundException('教师档案不存在')
 
+      const userId = profile.personnelProfile.userId
+
       const assignments = await tx.userRole.findMany({
         where: {
-          userId: profile.userId,
-          revokedAt: null,
+          userId,
           role: { code: 'CLASS_COORDINATOR' },
           scopeOrgUnitId: { not: null },
         },
@@ -128,13 +139,18 @@ export class TeacherProfileService {
 
       await lockClassRows(tx, classIds)
 
+      await tx.personnelProfile.update({
+        where: { id: profile.personnelProfileId },
+        data: { status: employmentStatus, updatedById: actorId },
+      })
+
       const updated = await tx.teacherProfile.update({
         where: { id: profileId },
-        data: { employmentStatus, updatedById: actorId },
+        data: { status: employmentStatus, updatedById: actorId },
       })
 
       for (const classId of classIds) {
-        await this.lifecycle.revokeIfIneligible(profile.userId, classId, actorId, tx)
+        await this.lifecycle.revokeIfIneligible(userId, classId, actorId, tx)
       }
 
       return updated
@@ -145,23 +161,66 @@ export class TeacherProfileService {
     return result
   }
 
-  /** 教师档案分页查询（范围由调用方计算后传入 departmentIds） */
+  /** 修改教师编号、职称与专业资料 */
+  async updateBasic(profileId: string, input: UpdateTeacherProfileInput, actorId: string) {
+    await this.findById(profileId)
+
+    try {
+      return await this.prisma.teacherProfile.update({
+        where: { id: profileId },
+        data: {
+          ...(input.teacherNo ? { teacherNo: input.teacherNo.trim() } : {}),
+          ...(input.title === undefined ? {} : { title: input.title?.trim() || null }),
+          ...(input.professionalInfo === undefined
+            ? {}
+            : { professionalInfo: input.professionalInfo?.trim() || null }),
+          updatedById: actorId,
+        },
+      })
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        throw new ConflictException('教师编号已存在')
+      }
+
+      throw error
+    }
+  }
+
+  /** 教师档案分页查询（范围由调用方计算后传入组织 ID） */
   async list(params: TeacherProfileListParams) {
-    const where = {
-      departmentId: {
-        in: params.departmentId ? [params.departmentId] : params.departmentIds,
-      },
-      ...(params.employmentStatus ? { employmentStatus: params.employmentStatus } : {}),
-      ...(params.teacherNo ? { teacherNo: params.teacherNo } : {}),
-      ...(params.name ? { user: { displayName: { contains: params.name } } } : {}),
-      ...(params.keyword
-        ? {
-            OR: [
-              { teacherNo: { contains: params.keyword } },
-              { user: { displayName: { contains: params.keyword } } },
-            ],
-          }
-        : {}),
+    /**
+     * 用 AND 组合条件：personnelProfile 是同一个关系键，
+     * 若与 realName 条件平铺在同一对象上，后者会覆盖组织范围条件导致越权。
+     */
+    const filters: Prisma.TeacherProfileWhereInput[] = []
+
+    if (params.employmentStatus) filters.push({ status: params.employmentStatus })
+    if (params.teacherNo) filters.push({ teacherNo: params.teacherNo })
+
+    if (params.realName) {
+      filters.push({ personnelProfile: { user: { realName: { contains: params.realName } } } })
+    }
+
+    if (params.keyword) {
+      filters.push({
+        OR: [
+          { teacherNo: { contains: params.keyword } },
+          { personnelProfile: { user: { realName: { contains: params.keyword } } } },
+        ],
+      })
+    }
+
+    const where: Prisma.TeacherProfileWhereInput = {
+      AND: [
+        {
+          personnelProfile: {
+            primaryOrganizationUnitId: {
+              in: params.organizationId ? [params.organizationId] : params.organizationIds,
+            },
+          },
+        },
+        ...filters,
+      ],
     }
 
     const [total, rows] = await Promise.all([
@@ -171,11 +230,21 @@ export class TeacherProfileService {
         select: {
           id: true,
           teacherNo: true,
-          departmentId: true,
-          employmentStatus: true,
+          title: true,
+          status: true,
           updatedAt: true,
-          user: { select: { id: true, displayName: true, email: true, status: true } },
-          department: { select: { id: true, name: true } },
+          personnelProfile: {
+            select: {
+              id: true,
+              employeeNo: true,
+              positionName: true,
+              primaryOrganizationUnitId: true,
+              primaryOrganization: { select: { id: true, name: true, type: true } },
+              user: {
+                select: { id: true, realName: true, email: true, phone: true, status: true },
+              },
+            },
+          },
         },
         orderBy: [{ teacherNo: 'asc' }, { id: 'asc' }],
         skip: (params.page - 1) * params.pageSize,
@@ -188,32 +257,58 @@ export class TeacherProfileService {
       list: rows.map((row) => ({
         id: row.id,
         teacherNo: row.teacherNo,
-        name: row.user.displayName,
-        email: row.user.email,
-        accountStatus: row.user.status,
-        departmentId: row.departmentId,
-        departmentName: row.department.name,
-        employmentStatus: row.employmentStatus,
+        title: row.title,
+        status: row.status,
+        personnelProfileId: row.personnelProfile.id,
+        employeeNo: row.personnelProfile.employeeNo,
+        positionName: row.personnelProfile.positionName,
+        organizationId: row.personnelProfile.primaryOrganizationUnitId,
+        organizationName: row.personnelProfile.primaryOrganization.name,
+        organizationType: row.personnelProfile.primaryOrganization.type,
+        userId: row.personnelProfile.user.id,
+        realName: row.personnelProfile.user.realName,
+        email: row.personnelProfile.user.email,
+        phone: row.personnelProfile.user.phone,
+        accountStatus: row.personnelProfile.user.status,
         updatedAt: row.updatedAt,
       })),
     }
   }
 
-  /** 教师详情：账号摘要、院系、审计信息与授权范围内的班级职责 */
+  /** 教师详情：账号摘要、正式组织、审计信息与授权范围内的班级职责 */
   async findDetail(profileId: string, allowedClassIds: string[]) {
     const profile = await this.prisma.teacherProfile.findUnique({
       where: { id: profileId },
       select: {
         id: true,
         teacherNo: true,
-        departmentId: true,
-        employmentStatus: true,
+        title: true,
+        professionalInfo: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
-        user: { select: { id: true, displayName: true, email: true, status: true } },
-        department: { select: { id: true, name: true, type: true } },
-        createdBy: { select: { id: true, displayName: true } },
-        updatedBy: { select: { id: true, displayName: true } },
+        personnelProfile: {
+          select: {
+            id: true,
+            employeeNo: true,
+            positionName: true,
+            status: true,
+            primaryOrganizationUnitId: true,
+            primaryOrganization: { select: { id: true, name: true, type: true } },
+            user: {
+              select: {
+                id: true,
+                realName: true,
+                email: true,
+                phone: true,
+                avatarUrl: true,
+                status: true,
+              },
+            },
+          },
+        },
+        createdBy: { select: { id: true, realName: true } },
+        updatedBy: { select: { id: true, realName: true } },
         classDuties: {
           where: { classId: { in: allowedClassIds } },
           select: {
@@ -238,15 +333,14 @@ export class TeacherProfileService {
     return {
       id: profile.id,
       teacherNo: profile.teacherNo,
-      name: profile.user.displayName,
-      departmentId: profile.departmentId,
-      departmentName: profile.department.name,
-      employmentStatus: profile.employmentStatus,
+      title: profile.title,
+      professionalInfo: profile.professionalInfo,
+      status: profile.status,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
       createdBy: profile.createdBy,
       updatedBy: profile.updatedBy,
-      user: profile.user,
+      personnelProfile: profile.personnelProfile,
       classDuties: profile.classDuties.map((item) => ({
         id: item.id,
         classId: item.classId,
@@ -263,72 +357,48 @@ export class TeacherProfileService {
     }
   }
 
-  /**
-   * 调整教师主要所属院系
-   *
-   * 存在有效班级职责且职责班级不在目标院系时，返回业务冲突，
-   * 不静默撤销职责、不自动改派班级。
-   */
-  async adjustDepartment(profileId: string, targetDepartmentId: string, actorId: string) {
-    await assertOrganizationNode(
-      this.organizationService,
-      targetDepartmentId,
-      'DEPARTMENT',
-      '目标院系',
-    )
-
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM teacher_profiles WHERE id = ${profileId} FOR UPDATE`
-
-      const profile = await tx.teacherProfile.findUnique({
-        where: { id: profileId },
-        select: { id: true, departmentId: true },
-      })
-
-      if (!profile) throw new NotFoundException('教师档案不存在')
-
-      if (profile.departmentId === targetDepartmentId) {
-        return tx.teacherProfile.findUniqueOrThrow({ where: { id: profileId } })
-      }
-
-      const now = new Date()
-      const duties = await tx.teacherClassDuty.findMany({
-        where: {
-          teacherId: profileId,
-          revokedAt: null,
-          validFrom: { lte: now },
-          OR: [{ validUntil: null }, { validUntil: { gt: now } }],
-        },
-        select: { id: true, classId: true },
-      })
-
-      for (const duty of duties) {
-        const inTarget = await this.organizationService.isWithinScope(
-          duty.classId,
-          targetDepartmentId,
-        )
-
-        if (!inTarget) {
-          throw new ConflictException(
-            '教师仍有不属于目标院系的班级职责，请先结束相关任职后再调整院系',
-          )
-        }
-      }
-
-      return tx.teacherProfile.update({
-        where: { id: profileId },
-        data: { departmentId: targetDepartmentId, updatedById: actorId },
-      })
-    })
-  }
-
+  /** 按正式组织归属查询教师；默认只返回在职教师 */
   async listByDepartment(departmentId: string, includeInactive = false) {
     return this.prisma.teacherProfile.findMany({
       where: {
-        departmentId,
-        ...(includeInactive ? {} : { employmentStatus: 'ACTIVE' }),
+        personnelProfile: { primaryOrganizationUnitId: departmentId },
+        ...(includeInactive ? {} : { status: 'ACTIVE' }),
       },
       orderBy: { teacherNo: 'asc' },
+      include: {
+        personnelProfile: {
+          select: { userId: true, user: { select: { realName: true } } },
+        },
+      },
     })
+  }
+
+  /**
+   * 教师可管理的班级 ID 集合
+   *
+   * 由班主任任职与教师正式院系推导，供详情接口裁剪班级职责使用。
+   */
+  async resolveVisibleClassIds(profileId: string, scopeClassIds: string[]): Promise<string[]> {
+    const duties = await this.prisma.teacherClassDuty.findMany({
+      where: { teacherId: profileId, classId: { in: scopeClassIds } },
+      select: { classId: true },
+    })
+
+    return [...new Set(duties.map((item) => item.classId))]
+  }
+
+  /** 组织节点校验：教师正式归属允许是学校、院系或专业，不允许班级 */
+  async assertPrimaryOrganization(organizationId: string) {
+    const node = await this.organizationService.findById(organizationId).catch(() => null)
+
+    if (!node) {
+      throw new NotFoundException('组织节点不存在')
+    }
+
+    if (node.type === 'CLASS') {
+      throw new ConflictException('工作人员的正式组织归属不能是班级，请选择院系或专业')
+    }
+
+    return node
   }
 }

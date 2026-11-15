@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common'
 
-import type { Prisma } from '../../../generated/prisma/client.js'
+import type { Prisma, UserRoleRevocationReason } from '../../../generated/prisma/client.js'
 import { MenuCacheInvalidatorService } from '../menus/menu-cache-invalidator.service.js'
 import { CoordinatorEligibilityService } from './coordinator-eligibility.service.js'
+
+const ROLE_CLASS_COORDINATOR = 'CLASS_COORDINATOR'
 
 /**
  * 协管员授权生命周期
  *
- * 资格失效时在同一事务内软撤销对应 UserRole：
- * - 只有「全部资格都失效」才撤销；
- * - 保留 revokedAt / revokedById 历史；
- * - 之后即使资格恢复，也不会重新激活旧分配，必须重新分配。
+ * Phase 1 起角色授权采用「当前表 + 历史表」：
+ * - UserRole 只保存此刻有效的授权，撤销即删除该行；
+ * - UserRoleHistory 追加一条不可变快照，保留撤销原因与操作人；
+ * - 之后即使资格恢复，也不会自动重建授权，必须由管理员重新分配。
  *
  * 运行时过滤（PermissionService）仍是最终安全边界；
  * 这里的撤销用于让数据库状态与资格保持一致。
@@ -34,20 +36,14 @@ export class CoordinatorLifecycleService {
     tx: Prisma.TransactionClient,
   ): Promise<string[]> {
     const role = await tx.role.findUnique({
-      where: { code: 'CLASS_COORDINATOR' },
-      select: { id: true },
+      where: { code: ROLE_CLASS_COORDINATOR },
+      select: { id: true, code: true },
     })
 
     if (!role) return []
 
     const assignment = await tx.userRole.findFirst({
-      where: {
-        userId,
-        roleId: role.id,
-        scopeOrgUnitId: classId,
-        revokedAt: null,
-      },
-      select: { id: true },
+      where: { userId, roleId: role.id, scopeOrgUnitId: classId },
     })
 
     if (!assignment) return []
@@ -56,25 +52,16 @@ export class CoordinatorLifecycleService {
 
     if (result.eligible) return []
 
-    const revoked = await tx.userRole.updateMany({
-      where: { id: assignment.id, revokedAt: null },
-      data: {
-        revokedAt: new Date(),
-        revokedById: actorId,
-        revocationReason: 'QUALIFICATION_LOST',
-      },
-    })
+    await this.revokeAssignment(assignment, role, actorId, 'QUALIFICATION_LOST', tx)
 
-    return revoked.count === 1 ? [assignment.id] : []
+    return [assignment.id]
   }
 
   /**
-   * 学生转班/离班时终止“仅靠学生身份”获得的旧班级协管员分配
+   * 学生转班/离班时终止「仅靠本班学生身份」获得的旧班级协管员分配
    *
-   * 现有资格规则中，同专业其他班学生也满足 CLASS_ASSISTANT 候选条件；
-   * 若转班后只依赖这一点保留原班级角色，会与“不再实际担任原班级职务”冲突。
-   * 因此在没有正式班长/班助任命表的情况下，只要该班级的资格全部来自学生身份，
-   * 转班即终止旧分配，必须由管理员重新任命。
+   * 任务书规定学生只能协管本人当前班级；转班后原班级资格随之消失，
+   * 因此旧分配必须终止，由管理员按新班级重新任命。
    */
   async revokeStudentBasisIfOnly(
     userId: string,
@@ -83,36 +70,67 @@ export class CoordinatorLifecycleService {
     tx: Prisma.TransactionClient,
   ): Promise<string[]> {
     const role = await tx.role.findUnique({
-      where: { code: 'CLASS_COORDINATOR' },
-      select: { id: true },
+      where: { code: ROLE_CLASS_COORDINATOR },
+      select: { id: true, code: true },
     })
 
     if (!role) return []
 
     const assignment = await tx.userRole.findFirst({
-      where: { userId, roleId: role.id, scopeOrgUnitId: classId, revokedAt: null },
-      select: { id: true },
+      where: { userId, roleId: role.id, scopeOrgUnitId: classId },
     })
 
     if (!assignment) return []
 
     const result = await this.eligibility.evaluate(userId, classId, tx)
     const studentOnly =
-      result.bases.length > 0 &&
-      result.bases.every((basis) => basis === 'STUDENT_MONITOR' || basis === 'CLASS_ASSISTANT')
+      result.bases.length > 0 && result.bases.every((basis) => basis === 'STUDENT_SELF')
 
     if (!studentOnly) return []
 
-    const revoked = await tx.userRole.updateMany({
-      where: { id: assignment.id, revokedAt: null },
+    await this.revokeAssignment(assignment, role, actorId, 'QUALIFICATION_LOST', tx)
+
+    return [assignment.id]
+  }
+
+  /**
+   * 撤销一条当前授权：先写历史快照，再删除当前行。
+   *
+   * 顺序固定为「先历史后删除」，保证任何时刻都能通过历史表追溯已撤销的授权。
+   */
+  private async revokeAssignment(
+    assignment: {
+      id: string
+      userId: string
+      scopeOrgUnitId: string | null
+      scopeKey: string
+      assignedById: string | null
+      validFrom: Date
+      validUntil: Date | null
+    },
+    role: { id: string; code: string },
+    actorId: string,
+    reason: UserRoleRevocationReason,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    await tx.userRoleHistory.create({
       data: {
+        userRoleId: assignment.id,
+        userId: assignment.userId,
+        roleId: role.id,
+        roleCode: role.code,
+        scopeOrgUnitId: assignment.scopeOrgUnitId,
+        scopeKey: assignment.scopeKey,
+        assignedById: assignment.assignedById,
+        validFrom: assignment.validFrom,
+        validUntil: assignment.validUntil,
         revokedAt: new Date(),
         revokedById: actorId,
-        revocationReason: 'QUALIFICATION_LOST',
+        revocationReason: reason,
       },
     })
 
-    return revoked.count === 1 ? [assignment.id] : []
+    await tx.userRole.delete({ where: { id: assignment.id } })
   }
 
   /** 事务提交后提升菜单缓存 generation */

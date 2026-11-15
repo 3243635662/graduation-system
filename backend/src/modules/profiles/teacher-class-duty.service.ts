@@ -57,14 +57,19 @@ export class TeacherClassDutyService {
     const created = await this.prisma.$transaction(async (tx) => {
       await lockClassRows(tx, [input.classId])
 
+      // 教师身份挂在工作人员档案下，账号通过 personnelProfile.userId 取得
       const teacher = await tx.teacherProfile.findUnique({
         where: { id: input.teacherId },
-        select: { id: true, userId: true, employmentStatus: true },
+        select: {
+          id: true,
+          status: true,
+          personnelProfile: { select: { userId: true } },
+        },
       })
 
       if (!teacher) throw new NotFoundException('教师档案不存在')
 
-      if (teacher.employmentStatus !== 'ACTIVE') {
+      if (teacher.status !== 'ACTIVE') {
         throw new BadRequestException('教师当前不在职，不能担任班主任')
       }
 
@@ -72,7 +77,12 @@ export class TeacherClassDutyService {
        * 新增资格前先终止已失去依据的旧分配：
        * 自然到期不会写数据库，若此时直接新增任职，旧 UserRole 可能被重新激活。
        */
-      await this.lifecycle.revokeIfIneligible(teacher.userId, input.classId, actorId, tx)
+      await this.lifecycle.revokeIfIneligible(
+        teacher.personnelProfile.userId,
+        input.classId,
+        actorId,
+        tx,
+      )
 
       const existing = await tx.teacherClassDuty.findMany({
         where: {
@@ -107,7 +117,7 @@ export class TeacherClassDutyService {
     const revoked = await this.prisma.$transaction(async (tx) => {
       const duty = await tx.teacherClassDuty.findUnique({
         where: { id: dutyId },
-        include: { teacher: { select: { userId: true } } },
+        include: { teacher: { select: { personnelProfile: { select: { userId: true } } } } },
       })
 
       if (!duty) throw new NotFoundException('班主任任职记录不存在')
@@ -130,7 +140,7 @@ export class TeacherClassDutyService {
       if (result.count !== 1) throw new ConflictException('该任职记录已结束')
 
       const removedRoles = await this.lifecycle.revokeIfIneligible(
-        duty.teacher.userId,
+        duty.teacher.personnelProfile.userId,
         duty.classId,
         actorId,
         tx,
@@ -177,9 +187,22 @@ export class TeacherClassDutyService {
       this.prisma.teacherClassDuty.count({ where }),
       this.prisma.teacherClassDuty.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          teacherId: true,
+          classId: true,
+          dutyType: true,
+          validFrom: true,
+          validUntil: true,
+          revokedAt: true,
+          revokedById: true,
           teacher: {
-            include: { user: { select: { id: true, displayName: true, email: true } } },
+            select: {
+              teacherNo: true,
+              personnelProfile: {
+                select: { user: { select: { realName: true, email: true } } },
+              },
+            },
           },
           class: { select: { id: true, name: true, code: true } },
         },
@@ -195,8 +218,8 @@ export class TeacherClassDutyService {
         id: item.id,
         teacherId: item.teacherId,
         teacherNo: item.teacher.teacherNo,
-        teacherName: item.teacher.user.displayName,
-        teacherEmail: item.teacher.user.email,
+        teacherName: item.teacher.personnelProfile.user.realName,
+        teacherEmail: item.teacher.personnelProfile.user.email,
         classId: item.classId,
         className: item.class.name,
         classCode: item.class.code,
@@ -216,9 +239,22 @@ export class TeacherClassDutyService {
   async findDetail(dutyId: string) {
     const duty = await this.prisma.teacherClassDuty.findUnique({
       where: { id: dutyId },
-      include: {
+      select: {
+        id: true,
+        teacherId: true,
+        classId: true,
+        dutyType: true,
+        validFrom: true,
+        validUntil: true,
+        revokedAt: true,
+        revokedById: true,
         teacher: {
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          select: {
+            teacherNo: true,
+            personnelProfile: {
+              select: { user: { select: { realName: true, email: true } } },
+            },
+          },
         },
         class: { select: { id: true, name: true, code: true } },
       },
@@ -232,8 +268,8 @@ export class TeacherClassDutyService {
       id: duty.id,
       teacherId: duty.teacherId,
       teacherNo: duty.teacher.teacherNo,
-      teacherName: duty.teacher.user.displayName,
-      teacherEmail: duty.teacher.user.email,
+      teacherName: duty.teacher.personnelProfile.user.realName,
+      teacherEmail: duty.teacher.personnelProfile.user.email,
       classId: duty.classId,
       className: duty.class.name,
       classCode: duty.class.code,
@@ -255,7 +291,11 @@ export class TeacherClassDutyService {
       where: { classId, ...this.effectiveWhere(includeRevoked) },
       include: {
         teacher: {
-          include: { user: { select: { id: true, displayName: true, email: true } } },
+          include: {
+            personnelProfile: {
+              include: { user: { select: { id: true, realName: true, email: true } } },
+            },
+          },
         },
       },
       orderBy: { validFrom: 'desc' },

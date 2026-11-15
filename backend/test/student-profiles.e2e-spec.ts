@@ -148,6 +148,8 @@ describe('学生档案 API (e2e)', () => {
 
   afterAll(async () => {
     await prisma.authSession.deleteMany({ where: { userId: { in: userIds } } })
+    // 转班会写入审计记录，测试数据需要一并清理（生产环境审计只追加）
+    await prisma.auditLog.deleteMany({ where: { targetId: { in: profileIds } } })
     await prisma.studentClassTransfer.deleteMany({
       where: { studentProfileId: { in: profileIds } },
     })

@@ -17,7 +17,13 @@ import { MenusService } from './menus.service.js'
  * - MenuCacheInvalidatorService 导出给后续菜单/角色/用户角色写入服务复用
  */
 @Module({
-  imports: [AuthModule, AuthorizationModule, forwardRef(() => OrganizationModule)],
+  // MenusModule 与授权内核存在循环引用（授权需要菜单缓存失效，菜单需要权限守卫），
+  // 必须用 forwardRef 延迟解析，否则新增入口模块改变加载顺序时会拿到 undefined
+  imports: [
+    AuthModule,
+    forwardRef(() => AuthorizationModule),
+    forwardRef(() => OrganizationModule),
+  ],
   controllers: [MenusController],
   providers: [
     { provide: MENU_CACHE_CONFIG, useFactory: () => loadMenuCacheConfig() },

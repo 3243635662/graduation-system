@@ -22,23 +22,27 @@ import type { AuthUserContext } from '../auth/types/auth-user.type.js'
 import { OrganizationScopeService } from '../rbac/authorization/organization-scope.service.js'
 import { PermissionsGuard } from '../rbac/authorization/permissions.guard.js'
 import { RequirePermissions } from '../rbac/authorization/require-permissions.decorator.js'
+import { PersonnelProfileService } from './personnel-profile.service.js'
 import {
-  adjustTeacherDepartmentSchema,
   createTeacherProfileSchema,
   teacherProfileListQuerySchema,
   updateTeacherEmploymentStatusSchema,
-  type AdjustTeacherDepartmentBody,
+  updateTeacherProfileSchema,
   type CreateTeacherProfileBody,
   type TeacherProfileListQuery,
   type UpdateTeacherEmploymentStatusBody,
+  type UpdateTeacherProfileBody,
 } from './teacher-profile.schema.js'
 import { TeacherProfileService } from './teacher-profile.service.js'
 
 /**
  * 教师档案管理
  *
- * 查询范围来自 teacher:profile:read 的院系子树；
- * 院系调整与在职状态使用独立权限，避免用 teacher:profile:update 一把抓。
+ * 教师身份挂在工作人员档案之下：
+ * - 数据范围来自 teacher:profile:read 的组织子树；
+ * - 所属组织统一取 personnelProfile.primaryOrganizationUnit；
+ * - 院系调整已移动到工作人员档案（PATCH /personnel-profiles/:id）；
+ * - 在职状态使用独立权限，避免用 teacher:profile:update 一把抓。
  */
 @ApiTags('教师档案')
 @ApiBearerAuth('access-token')
@@ -47,33 +51,34 @@ import { TeacherProfileService } from './teacher-profile.service.js'
 export class TeacherProfileController {
   constructor(
     private readonly service: TeacherProfileService,
+    private readonly personnelService: PersonnelProfileService,
     private readonly scopeService: OrganizationScopeService,
   ) {}
 
   @Get()
   @RequirePermissions(PermissionCode.TEACHER_PROFILE_READ)
-  @ApiOperation({ summary: '分页查询授权院系范围内的教师档案' })
+  @ApiOperation({ summary: '分页查询授权组织范围内的教师档案' })
   @ApiSuccessResponse({ description: '查询成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({ status: 401, code: 40101, message: '未登录或登录状态已失效' })
-  @ApiErrorResponse({ status: 403, code: 40300, message: '没有访问该院系教师档案的权限' })
+  @ApiErrorResponse({ status: 403, code: 40300, message: '没有访问该组织范围教师档案的权限' })
   async list(
     @CurrentUser() authUser: AuthUserContext,
     @Query({ schema: teacherProfileListQuerySchema }) query: TeacherProfileListQuery,
   ) {
-    const departmentIds = await this.resolveDepartmentIds(
+    const organizationIds = await this.resolveOrgUnitIds(
       authUser.userId,
       PermissionCode.TEACHER_PROFILE_READ,
-      query.departmentId,
+      query.organizationId,
     )
 
     return this.service.list({
-      departmentIds,
+      organizationIds,
       page: query.page,
       pageSize: query.pageSize,
       keyword: query.keyword,
       teacherNo: query.teacherNo,
-      name: query.name,
-      departmentId: query.departmentId,
+      realName: query.realName,
+      organizationId: query.organizationId,
       employmentStatus: query.employmentStatus,
     })
   }
@@ -87,20 +92,31 @@ export class TeacherProfileController {
     @CurrentUser() authUser: AuthUserContext,
     @Param({ schema: idParamSchema }) params: IdParam,
   ) {
-    const profile = await this.service.findById(params.id)
-
-    const scope = await this.assertDepartmentAccess(
+    const scopeOrgUnitIds = await this.resolveOrgUnitIds(
       authUser.userId,
       PermissionCode.TEACHER_PROFILE_READ,
-      profile.departmentId,
     )
 
-    return this.service.findDetail(params.id, scope)
+    // 班级职责先按授权组织范围裁剪，再用教师正式组织判定档案本身是否可读
+    const visibleClassIds = await this.service.resolveVisibleClassIds(params.id, scopeOrgUnitIds)
+
+    const detail = await this.service.findDetail(params.id, visibleClassIds)
+
+    await this.scopeService.assertOrgUnitAccess(
+      authUser.userId,
+      PermissionCode.TEACHER_PROFILE_READ,
+      detail.personnelProfile.primaryOrganizationUnitId,
+    )
+
+    return detail
   }
 
   @Post()
   @RequirePermissions(PermissionCode.TEACHER_PROFILE_CREATE)
-  @ApiOperation({ summary: '为已存在的用户创建教师档案' })
+  @ApiOperation({
+    summary: '为已有工作人员档案创建教师身份',
+    description: '教师编号唯一；所属组织与账号信息从工作人员档案读取。',
+  })
   @ApiSuccessResponse({ status: 201, description: '创建成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({
     status: 400,
@@ -108,89 +124,89 @@ export class TeacherProfileController {
     message: '请求参数校验失败',
     dataSchema: validationIssuesSchema,
   })
-  @ApiErrorResponse({ status: 403, code: 40300, message: '没有在该院系创建教师档案的权限' })
-  @ApiErrorResponse({ status: 409, code: 40900, message: '工号或教师账号已存在' })
+  @ApiErrorResponse({ status: 403, code: 40300, message: '没有在该组织下创建教师档案的权限' })
+  @ApiErrorResponse({ status: 404, code: 40400, message: '工作人员档案不存在' })
+  @ApiErrorResponse({ status: 409, code: 40900, message: '教师编号已存在或该工作人员已有教师身份' })
   async create(
     @CurrentUser() authUser: AuthUserContext,
     @Body({ schema: createTeacherProfileSchema }) body: CreateTeacherProfileBody,
   ) {
+    const personnel = await this.personnelService.findById(body.personnelProfileId)
+
     await this.scopeService.assertOrgUnitAccess(
       authUser.userId,
       PermissionCode.TEACHER_PROFILE_CREATE,
-      body.departmentId,
+      personnel.primaryOrganizationUnitId,
     )
 
     return this.service.create(
       {
-        userId: body.userId,
+        personnelProfileId: body.personnelProfileId,
         teacherNo: body.teacherNo,
-        departmentId: body.departmentId,
+        title: body.title ?? null,
+        professionalInfo: body.professionalInfo ?? null,
       },
       authUser.userId,
     )
   }
 
-  @Patch(':id/department')
-  @RequirePermissions(PermissionCode.TEACHER_PROFILE_DEPARTMENT_UPDATE)
+  @Patch(':id')
+  @RequirePermissions(PermissionCode.TEACHER_PROFILE_UPDATE)
   @ApiOperation({
-    summary: '调整教师主要所属院系',
-    description: '仅学校管理员；存在不属于目标院系的有效班级职责时返回 409。',
+    summary: '修改教师编号、职称与专业资料',
+    description: '所属组织与绑定账号不在本接口调整，请使用工作人员档案接口。',
   })
-  @ApiSuccessResponse({ description: '调整成功', dataSchema: { type: 'object' } })
-  @ApiErrorResponse({ status: 403, code: 40300, message: '没有调整该教师院系的权限' })
-  @ApiErrorResponse({ status: 409, code: 40900, message: '教师仍有不属于目标院系的班级职责' })
-  async adjustDepartment(
+  @ApiSuccessResponse({ description: '修改成功', dataSchema: { type: 'object' } })
+  @ApiErrorResponse({ status: 403, code: 40300, message: '没有修改该教师档案的权限' })
+  @ApiErrorResponse({ status: 404, code: 40400, message: '教师档案不存在' })
+  @ApiErrorResponse({ status: 409, code: 40900, message: '教师编号已存在' })
+  async update(
     @CurrentUser() authUser: AuthUserContext,
     @Param({ schema: idParamSchema }) params: IdParam,
-    @Body({ schema: adjustTeacherDepartmentSchema }) body: AdjustTeacherDepartmentBody,
+    @Body({ schema: updateTeacherProfileSchema }) body: UpdateTeacherProfileBody,
   ) {
-    const profile = await this.service.findById(params.id)
+    const detail = await this.service.findDetail(params.id, [])
 
     await this.scopeService.assertOrgUnitAccess(
       authUser.userId,
-      PermissionCode.TEACHER_PROFILE_DEPARTMENT_UPDATE,
-      profile.departmentId,
+      PermissionCode.TEACHER_PROFILE_UPDATE,
+      detail.personnelProfile.primaryOrganizationUnitId,
     )
 
-    await this.scopeService.assertOrgUnitAccess(
-      authUser.userId,
-      PermissionCode.TEACHER_PROFILE_DEPARTMENT_UPDATE,
-      body.departmentId,
-    )
-
-    return this.service.adjustDepartment(params.id, body.departmentId, authUser.userId)
+    return this.service.updateBasic(params.id, body, authUser.userId)
   }
 
   @Patch(':id/status')
   @RequirePermissions(PermissionCode.TEACHER_PROFILE_STATUS_UPDATE)
   @ApiOperation({
     summary: '修改教师在职状态',
-    description: '状态变更后重算协管员资格；恢复 ACTIVE 不会恢复已撤销的旧角色。',
+    description: '同时更新工作人员任职状态并重算协管员资格；恢复 ACTIVE 不会恢复已撤销的旧角色。',
   })
   @ApiSuccessResponse({ description: '修改成功', dataSchema: { type: 'object' } })
   @ApiErrorResponse({ status: 403, code: 40300, message: '没有修改该教师在职状态的权限' })
+  @ApiErrorResponse({ status: 404, code: 40400, message: '教师档案不存在' })
   async updateStatus(
     @CurrentUser() authUser: AuthUserContext,
     @Param({ schema: idParamSchema }) params: IdParam,
     @Body({ schema: updateTeacherEmploymentStatusSchema })
     body: UpdateTeacherEmploymentStatusBody,
   ) {
-    const profile = await this.service.findById(params.id)
+    const detail = await this.service.findDetail(params.id, [])
 
     await this.scopeService.assertOrgUnitAccess(
       authUser.userId,
       PermissionCode.TEACHER_PROFILE_STATUS_UPDATE,
-      profile.departmentId,
+      detail.personnelProfile.primaryOrganizationUnitId,
     )
 
     return this.service.updateEmploymentStatus(params.id, body.employmentStatus, authUser.userId)
   }
 
-  /** 列表范围：授权院系子树；departmentId 只能收窄 */
-  private async resolveDepartmentIds(
+  /** 授权组织子树；organizationId 只能收窄，不能扩大范围 */
+  private async resolveOrgUnitIds(
     actorId: string,
     permissionCode: PermissionCode,
-    requestedDepartmentId?: string,
+    requestedOrganizationId?: string,
   ): Promise<string[]> {
     const scope = await this.scopeService.resolve(actorId, permissionCode)
 
@@ -202,39 +218,19 @@ export class TeacherProfileController {
       })
     }
 
-    if (requestedDepartmentId) {
-      await this.scopeService.assertOrgUnitAccess(actorId, permissionCode, requestedDepartmentId)
+    if (requestedOrganizationId) {
+      await this.scopeService.assertOrgUnitAccess(actorId, permissionCode, requestedOrganizationId)
 
-      if (!scope.orgUnitIds.includes(requestedDepartmentId)) {
+      if (!scope.orgUnitIds.includes(requestedOrganizationId)) {
         throw new ForbiddenException({
           code: 40300,
           data: null,
-          message: '目标院系不在授权范围内',
+          message: '目标组织不在授权范围内',
         })
       }
 
-      return [requestedDepartmentId]
+      return [requestedOrganizationId]
     }
-
-    return scope.orgUnitIds
-  }
-
-  private async assertDepartmentAccess(
-    actorId: string,
-    permissionCode: PermissionCode,
-    departmentId: string,
-  ): Promise<string[]> {
-    const scope = await this.scopeService.resolve(actorId, permissionCode)
-
-    if (scope.kind !== 'SUBTREE') {
-      throw new ForbiddenException({
-        code: 40300,
-        data: null,
-        message: '没有可用的教师档案管理范围',
-      })
-    }
-
-    await this.scopeService.assertOrgUnitAccess(actorId, permissionCode, departmentId)
 
     return scope.orgUnitIds
   }

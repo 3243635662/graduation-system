@@ -81,7 +81,6 @@ export class PermissionService {
     const rows = await this.prisma.userRole.findMany({
       where: {
         userId,
-        revokedAt: null,
         validFrom: { lte: now },
         OR: [{ validUntil: null }, { validUntil: { gt: now } }],
         role: { status: 'ACTIVE' },

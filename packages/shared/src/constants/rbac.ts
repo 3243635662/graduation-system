@@ -6,6 +6,7 @@
  * 2. 角色编码、权限编码是稳定标识，Seed、后端守卫、前端展示都引用这里。
  * 3. 本文件只描述系统预置数据，不包含任何运行时授权逻辑。
  * 4. 角色与菜单的关联只维护 PAGE 编码；DIRECTORY 由菜单树自动补齐。
+ * 5. 只登记后端真实存在的接口能力，不预埋尚未实现的业务权限。
  */
 
 /** 七个预置角色编码 */
@@ -21,7 +22,11 @@ export const RoleCode = {
 
 export type RoleCode = (typeof RoleCode)[keyof typeof RoleCode]
 
-/** 旧版超级管理员角色编码，仅用于迁移与审计，不再分配给用户 */
+/**
+ * 旧版超级管理员角色编码。
+ *
+ * 重建后不再使用，仅保留常量供历史数据识别与审计展示。
+ */
 export const LEGACY_SUPER_ADMIN_ROLE_CODE = 'SUPER_ADMIN'
 
 /** 数据范围，与 Prisma 的 DataScope 枚举保持一致 */
@@ -39,40 +44,57 @@ export type DataScope = (typeof DataScope)[keyof typeof DataScope]
 
 /** 功能权限编码：resource:action，菜单可见性与之无关 */
 export const PermissionCode = {
+  // RBAC
   RBAC_ROLE_READ: 'rbac:role:read',
-  ORGANIZATION_READ: 'organization:unit:read',
-  ORGANIZATION_CREATE: 'organization:unit:create',
-  ORGANIZATION_UPDATE: 'organization:unit:update',
   ROLE_ASSIGNMENT_READ: 'rbac:role-assignment:read',
   ROLE_ASSIGNMENT_ASSIGN: 'rbac:role-assignment:assign',
   ROLE_ASSIGNMENT_REVOKE: 'rbac:role-assignment:revoke',
 
-  // Phase E：组织与人员管理
-  USER_READ: 'user:read',
+  // 组织架构
+  ORGANIZATION_READ: 'organization:unit:read',
+  ORGANIZATION_CREATE: 'organization:unit:create',
+  ORGANIZATION_UPDATE: 'organization:unit:update',
 
+  // 用户账号
+  USER_READ: 'user:read',
+  USER_CREATE: 'user:create',
+  USER_UPDATE: 'user:update',
+
+  // 学生档案
   STUDENT_PROFILE_READ: 'student:profile:read',
   STUDENT_PROFILE_CREATE: 'student:profile:create',
   STUDENT_PROFILE_UPDATE: 'student:profile:update',
   STUDENT_PROFILE_TRANSFER: 'student:profile:transfer',
   STUDENT_PROFILE_STATUS_UPDATE: 'student:profile:status:update',
 
+  // 工作人员档案
+  PERSONNEL_PROFILE_READ: 'personnel:profile:read',
+  PERSONNEL_PROFILE_CREATE: 'personnel:profile:create',
+  PERSONNEL_PROFILE_UPDATE: 'personnel:profile:update',
+
+  // 教师档案
   TEACHER_PROFILE_READ: 'teacher:profile:read',
   TEACHER_PROFILE_CREATE: 'teacher:profile:create',
   TEACHER_PROFILE_UPDATE: 'teacher:profile:update',
-  TEACHER_PROFILE_DEPARTMENT_UPDATE: 'teacher:profile:department:update',
   TEACHER_PROFILE_STATUS_UPDATE: 'teacher:profile:status:update',
 
+  // 班主任任职
   CLASS_DUTY_READ: 'organization:class-duty:read',
   CLASS_DUTY_ASSIGN: 'organization:class-duty:assign',
   CLASS_DUTY_REVOKE: 'organization:class-duty:revoke',
 
+  // 辅导员分配
   COUNSELOR_READ: 'organization:counselor:read',
   COUNSELOR_ASSIGN: 'organization:counselor:assign',
   COUNSELOR_REVOKE: 'organization:counselor:revoke',
 
+  // 协管资格特殊覆盖
   COORDINATOR_OVERRIDE_READ: 'coordinator:override:read',
   COORDINATOR_OVERRIDE_GRANT: 'coordinator:override:grant',
   COORDINATOR_OVERRIDE_REVOKE: 'coordinator:override:revoke',
+
+  // 审计
+  AUDIT_LOG_READ: 'audit:log:read',
 } as const
 
 export type PermissionCode = (typeof PermissionCode)[keyof typeof PermissionCode]
@@ -89,13 +111,13 @@ export const PRESET_ROLES: readonly RoleDefinition[] = [
   {
     code: RoleCode.PLATFORM_SUPER_ADMIN,
     name: '平台超级管理员',
-    description: '系统初始化、技术维护与全局配置，不承担学校日常业务',
+    description: '系统初始化与技术维护，不承担学校日常业务；仅作为角色模板保留，Seed 不创建账号',
     dataScope: DataScope.GLOBAL,
   },
   {
     code: RoleCode.SCHOOL_ADMIN,
     name: '学校管理员',
-    description: '全校组织架构、用户与毕业设计业务管理',
+    description: '全校组织架构、人员与毕业设计业务管理',
     dataScope: DataScope.SCHOOL,
   },
   {
@@ -113,7 +135,7 @@ export const PRESET_ROLES: readonly RoleDefinition[] = [
   {
     code: RoleCode.CLASS_COORDINATOR,
     name: '班级事务协管员',
-    description: '协助指定班级的日常事务与毕业设计进度跟进',
+    description: '协助指定班级的日常事务与进度跟进',
     dataScope: DataScope.CLASS,
   },
   {
@@ -141,8 +163,7 @@ export interface PermissionDefinition {
 /**
  * 预置功能权限
  *
- * 只登记当前系统真实存在（或本次重构中即将落地）的接口能力，
- * 不为不存在的业务预埋权限编码。
+ * 只登记当前系统真实存在（或本次 Phase 1 落地）的接口能力。
  */
 export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
   {
@@ -151,6 +172,27 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
     moduleName: 'rbac',
     action: 'role:read',
     description: '读取系统预置角色模板，用于角色分配界面',
+  },
+  {
+    code: PermissionCode.ROLE_ASSIGNMENT_READ,
+    name: '查看角色授权',
+    moduleName: 'rbac',
+    action: 'role-assignment:read',
+    description: '查看授权范围内的用户角色与授权历史',
+  },
+  {
+    code: PermissionCode.ROLE_ASSIGNMENT_ASSIGN,
+    name: '分配角色',
+    moduleName: 'rbac',
+    action: 'role-assignment:assign',
+    description: '在授权范围内为用户分配角色',
+  },
+  {
+    code: PermissionCode.ROLE_ASSIGNMENT_REVOKE,
+    name: '撤销角色',
+    moduleName: 'rbac',
+    action: 'role-assignment:revoke',
+    description: '撤销角色授权并写入不可变历史',
   },
   {
     code: PermissionCode.ORGANIZATION_READ,
@@ -174,27 +216,6 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
     description: '修改授权范围内组织节点的名称、排序与状态',
   },
   {
-    code: PermissionCode.ROLE_ASSIGNMENT_READ,
-    name: '查看角色分配',
-    moduleName: 'rbac',
-    action: 'role-assignment:read',
-    description: '查看授权范围内的用户角色分配与历史记录',
-  },
-  {
-    code: PermissionCode.ROLE_ASSIGNMENT_ASSIGN,
-    name: '分配角色',
-    moduleName: 'rbac',
-    action: 'role-assignment:assign',
-    description: '在授权范围内为用户分配角色',
-  },
-  {
-    code: PermissionCode.ROLE_ASSIGNMENT_REVOKE,
-    name: '撤销角色',
-    moduleName: 'rbac',
-    action: 'role-assignment:revoke',
-    description: '撤销授权范围内的用户角色分配并保留历史',
-  },
-  {
     code: PermissionCode.USER_READ,
     name: '查看用户账号',
     moduleName: 'user',
@@ -202,25 +223,39 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
     description: '在授权组织范围内分页查询用户账号与详情',
   },
   {
+    code: PermissionCode.USER_CREATE,
+    name: '创建用户账号',
+    moduleName: 'user',
+    action: 'create',
+    description: '为教职工或学生创建登录账号（不含公开注册）',
+  },
+  {
+    code: PermissionCode.USER_UPDATE,
+    name: '修改用户账号',
+    moduleName: 'user',
+    action: 'update',
+    description: '修改账号状态、联系方式与头像，不包含学号工号与组织归属',
+  },
+  {
     code: PermissionCode.STUDENT_PROFILE_READ,
     name: '查看学生档案',
     moduleName: 'student',
     action: 'profile:read',
-    description: '查询授权班级范围内的学生档案（含未注册账号的档案）',
+    description: '查询授权班级范围内的学生档案',
   },
   {
     code: PermissionCode.STUDENT_PROFILE_CREATE,
     name: '创建学生档案',
     moduleName: 'student',
     action: 'profile:create',
-    description: '在授权班级内创建尚未绑定账号的学生档案',
+    description: '为已存在的用户创建学生档案并指定班级',
   },
   {
     code: PermissionCode.STUDENT_PROFILE_UPDATE,
     name: '修改学生档案',
     moduleName: 'student',
     action: 'profile:update',
-    description: '修改学生姓名等基础信息，不包含转班与学籍状态',
+    description: '修改学号、入学年份与班级等基础信息',
   },
   {
     code: PermissionCode.STUDENT_PROFILE_TRANSFER,
@@ -237,6 +272,27 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
     description: '修改学生休学、毕业、退学等学籍状态',
   },
   {
+    code: PermissionCode.PERSONNEL_PROFILE_READ,
+    name: '查看工作人员档案',
+    moduleName: 'personnel',
+    action: 'profile:read',
+    description: '查询授权组织范围内的工作人员档案',
+  },
+  {
+    code: PermissionCode.PERSONNEL_PROFILE_CREATE,
+    name: '创建工作人员档案',
+    moduleName: 'personnel',
+    action: 'profile:create',
+    description: '为已存在的用户创建工作人员档案并指定正式组织归属',
+  },
+  {
+    code: PermissionCode.PERSONNEL_PROFILE_UPDATE,
+    name: '修改工作人员档案',
+    moduleName: 'personnel',
+    action: 'profile:update',
+    description: '修改工号、岗位、正式组织归属与任职状态',
+  },
+  {
     code: PermissionCode.TEACHER_PROFILE_READ,
     name: '查看教师档案',
     moduleName: 'teacher',
@@ -248,21 +304,14 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
     name: '创建教师档案',
     moduleName: 'teacher',
     action: 'profile:create',
-    description: '为已存在的用户创建教师档案',
+    description: '为已存在的工作人员档案创建教师身份',
   },
   {
     code: PermissionCode.TEACHER_PROFILE_UPDATE,
     name: '修改教师档案',
     moduleName: 'teacher',
     action: 'profile:update',
-    description: '历史兼容权限，Phase E4 起由院系/状态两个细分权限替代',
-  },
-  {
-    code: PermissionCode.TEACHER_PROFILE_DEPARTMENT_UPDATE,
-    name: '调整教师所属院系',
-    moduleName: 'teacher',
-    action: 'profile:department:update',
-    description: '仅学校管理员可调整教师主要所属院系',
+    description: '修改职称、教师编号与专业资料',
   },
   {
     code: PermissionCode.TEACHER_PROFILE_STATUS_UPDATE,
@@ -334,6 +383,13 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
     action: 'override:revoke',
     description: '撤销特殊覆盖授权并重算资格',
   },
+  {
+    code: PermissionCode.AUDIT_LOG_READ,
+    name: '查看审计日志',
+    moduleName: 'audit',
+    action: 'log:read',
+    description: '分页查询操作审计记录（只读，不提供修改与删除接口）',
+  },
 ] as const
 
 /**
@@ -342,101 +398,91 @@ export const PRESET_PERMISSIONS: readonly PermissionDefinition[] = [
  * 授权原则：菜单只决定入口可见性，不代表任何 API 或数据范围授权。
  */
 export const ROLE_MENU_CODES: Readonly<Record<RoleCode, readonly string[]>> = {
-  PLATFORM_SUPER_ADMIN: ['DASHBOARD', 'AI_ASSISTANT', 'ROLE_MANAGEMENT', 'MENU_MANAGEMENT'],
+  PLATFORM_SUPER_ADMIN: [
+    'DASHBOARD',
+    'USER_ACCOUNTS',
+    'ROLE_ASSIGNMENTS',
+    'ORGANIZATION_TREE',
+    'AUDIT_LOGS',
+    'MY_PROFILE',
+  ],
   SCHOOL_ADMIN: [
     'DASHBOARD',
-    'TOPIC_CENTER',
-    'TOPIC_REVIEW',
-    'PROCESS_REVIEW',
-    'PROCESS_MONITOR',
-    'DEFENSE_MANAGEMENT',
-    'GRADE_MANAGEMENT',
-    'ACHIEVEMENT_ARCHIVE',
-    'AI_ASSISTANT',
-    'USER_MANAGEMENT',
-    'DEPARTMENT_MANAGEMENT',
-    'MAJOR_MANAGEMENT',
-    'ROLE_MANAGEMENT',
+    'USER_ACCOUNTS',
+    'STUDENT_PROFILES',
+    'STAFF_PROFILES',
+    'ROLE_ASSIGNMENTS',
+    'ORGANIZATION_TREE',
+    'CLASS_DUTIES',
+    'COUNSELOR_ASSIGNMENTS',
+    'COORDINATOR_ASSIGNMENTS',
+    'AUDIT_LOGS',
+    'MY_PROFILE',
   ],
   DEPARTMENT_ADMIN: [
     'DASHBOARD',
-    'TOPIC_CENTER',
-    'TOPIC_REVIEW',
-    'PROCESS_REVIEW',
-    'PROCESS_MONITOR',
-    'DEFENSE_MANAGEMENT',
-    'GRADE_MANAGEMENT',
-    'ACHIEVEMENT_ARCHIVE',
-    'AI_ASSISTANT',
-    'USER_MANAGEMENT',
-    'MAJOR_MANAGEMENT',
+    'USER_ACCOUNTS',
+    'STUDENT_PROFILES',
+    'STAFF_PROFILES',
+    'ROLE_ASSIGNMENTS',
+    'ORGANIZATION_TREE',
+    'CLASS_DUTIES',
+    'COUNSELOR_ASSIGNMENTS',
+    'MY_PROFILE',
   ],
   MAJOR_ADMIN: [
     'DASHBOARD',
-    'TOPIC_CENTER',
-    'TOPIC_REVIEW',
-    'PROCESS_REVIEW',
-    'PROCESS_MONITOR',
-    'DEFENSE_MANAGEMENT',
-    'GRADE_MANAGEMENT',
-    'ACHIEVEMENT_ARCHIVE',
-    'AI_ASSISTANT',
-    'USER_MANAGEMENT',
+    'USER_ACCOUNTS',
+    'STUDENT_PROFILES',
+    'ROLE_ASSIGNMENTS',
+    'ORGANIZATION_TREE',
+    'MY_PROFILE',
   ],
-  CLASS_COORDINATOR: ['DASHBOARD', 'PROCESS_MONITOR', 'AI_ASSISTANT'],
-  TEACHER: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'GUIDANCE_STUDENTS',
-    'PROCESS_REVIEW',
-    'THESIS_REVIEW',
-    'DEFENSE_MANAGEMENT',
-    'AI_ASSISTANT',
-  ],
-  STUDENT: [
-    'DASHBOARD',
-    'TOPIC_CENTER',
-    'MY_TOPIC',
-    'MY_PROJECT',
-    'THESIS_SUBMISSION',
-    'AI_ASSISTANT',
-  ],
+  CLASS_COORDINATOR: ['DASHBOARD', 'MY_PROFILE'],
+  TEACHER: ['DASHBOARD', 'MY_PROFILE'],
+  STUDENT: ['DASHBOARD', 'MY_PROFILE'],
 } as const
 
 /**
  * 角色 → 功能权限
  *
- * CLASS_COORDINATOR / TEACHER / STUDENT 当前没有可授予的接口能力：
- * 它们的数据权限依赖尚未实现的班级/指导关系接口，Phase 3 起随接口逐步追加。
+ * 说明：
+ * - 平台超管只负责系统维护，不获得学校业务权限，且 Seed 不创建其账号；
+ * - 协管 / 教师 / 学生当前没有独立管理接口，数据权限依赖业务关系，Phase 2 起追加。
  */
 export const ROLE_PERMISSION_CODES: Readonly<Record<RoleCode, readonly PermissionCode[]>> = {
-  // 平台超管承担系统级维护：可查看组织树、维护角色分配，
-  // 但不获得任何学校业务（毕设/论文/成绩）权限。
   PLATFORM_SUPER_ADMIN: [
     PermissionCode.RBAC_ROLE_READ,
     PermissionCode.ORGANIZATION_READ,
     PermissionCode.ROLE_ASSIGNMENT_READ,
     PermissionCode.ROLE_ASSIGNMENT_ASSIGN,
     PermissionCode.ROLE_ASSIGNMENT_REVOKE,
+    PermissionCode.USER_READ,
+    PermissionCode.USER_UPDATE,
+    PermissionCode.AUDIT_LOG_READ,
   ],
   SCHOOL_ADMIN: [
     PermissionCode.RBAC_ROLE_READ,
-    PermissionCode.ORGANIZATION_READ,
-    PermissionCode.ORGANIZATION_CREATE,
-    PermissionCode.ORGANIZATION_UPDATE,
     PermissionCode.ROLE_ASSIGNMENT_READ,
     PermissionCode.ROLE_ASSIGNMENT_ASSIGN,
     PermissionCode.ROLE_ASSIGNMENT_REVOKE,
+    PermissionCode.ORGANIZATION_READ,
+    PermissionCode.ORGANIZATION_CREATE,
+    PermissionCode.ORGANIZATION_UPDATE,
     PermissionCode.USER_READ,
+    PermissionCode.USER_CREATE,
+    PermissionCode.USER_UPDATE,
     PermissionCode.STUDENT_PROFILE_READ,
     PermissionCode.STUDENT_PROFILE_CREATE,
     PermissionCode.STUDENT_PROFILE_UPDATE,
     PermissionCode.STUDENT_PROFILE_TRANSFER,
     PermissionCode.STUDENT_PROFILE_STATUS_UPDATE,
+    PermissionCode.PERSONNEL_PROFILE_READ,
+    PermissionCode.PERSONNEL_PROFILE_CREATE,
+    PermissionCode.PERSONNEL_PROFILE_UPDATE,
     PermissionCode.TEACHER_PROFILE_READ,
     PermissionCode.TEACHER_PROFILE_CREATE,
     PermissionCode.TEACHER_PROFILE_UPDATE,
-    PermissionCode.TEACHER_PROFILE_DEPARTMENT_UPDATE,
     PermissionCode.TEACHER_PROFILE_STATUS_UPDATE,
     PermissionCode.CLASS_DUTY_READ,
     PermissionCode.CLASS_DUTY_ASSIGN,
@@ -447,21 +493,27 @@ export const ROLE_PERMISSION_CODES: Readonly<Record<RoleCode, readonly Permissio
     PermissionCode.COORDINATOR_OVERRIDE_READ,
     PermissionCode.COORDINATOR_OVERRIDE_GRANT,
     PermissionCode.COORDINATOR_OVERRIDE_REVOKE,
+    PermissionCode.AUDIT_LOG_READ,
   ],
   DEPARTMENT_ADMIN: [
     PermissionCode.RBAC_ROLE_READ,
-    PermissionCode.ORGANIZATION_READ,
-    PermissionCode.ORGANIZATION_CREATE,
-    PermissionCode.ORGANIZATION_UPDATE,
     PermissionCode.ROLE_ASSIGNMENT_READ,
     PermissionCode.ROLE_ASSIGNMENT_ASSIGN,
     PermissionCode.ROLE_ASSIGNMENT_REVOKE,
+    PermissionCode.ORGANIZATION_READ,
+    PermissionCode.ORGANIZATION_CREATE,
+    PermissionCode.ORGANIZATION_UPDATE,
     PermissionCode.USER_READ,
+    PermissionCode.USER_CREATE,
+    PermissionCode.USER_UPDATE,
     PermissionCode.STUDENT_PROFILE_READ,
     PermissionCode.STUDENT_PROFILE_CREATE,
     PermissionCode.STUDENT_PROFILE_UPDATE,
     PermissionCode.STUDENT_PROFILE_TRANSFER,
     PermissionCode.STUDENT_PROFILE_STATUS_UPDATE,
+    PermissionCode.PERSONNEL_PROFILE_READ,
+    PermissionCode.PERSONNEL_PROFILE_CREATE,
+    PermissionCode.PERSONNEL_PROFILE_UPDATE,
     PermissionCode.TEACHER_PROFILE_READ,
     PermissionCode.TEACHER_PROFILE_CREATE,
     PermissionCode.TEACHER_PROFILE_UPDATE,
@@ -475,17 +527,18 @@ export const ROLE_PERMISSION_CODES: Readonly<Record<RoleCode, readonly Permissio
   ],
   MAJOR_ADMIN: [
     PermissionCode.RBAC_ROLE_READ,
-    PermissionCode.ORGANIZATION_READ,
-    PermissionCode.ORGANIZATION_CREATE,
-    PermissionCode.ORGANIZATION_UPDATE,
     PermissionCode.ROLE_ASSIGNMENT_READ,
     PermissionCode.ROLE_ASSIGNMENT_ASSIGN,
     PermissionCode.ROLE_ASSIGNMENT_REVOKE,
+    PermissionCode.ORGANIZATION_READ,
+    PermissionCode.ORGANIZATION_CREATE,
+    PermissionCode.ORGANIZATION_UPDATE,
     PermissionCode.USER_READ,
     PermissionCode.STUDENT_PROFILE_READ,
     PermissionCode.STUDENT_PROFILE_CREATE,
     PermissionCode.STUDENT_PROFILE_UPDATE,
     PermissionCode.STUDENT_PROFILE_TRANSFER,
+    PermissionCode.STUDENT_PROFILE_STATUS_UPDATE,
   ],
   CLASS_COORDINATOR: [],
   TEACHER: [],

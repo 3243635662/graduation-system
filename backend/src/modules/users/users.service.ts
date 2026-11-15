@@ -22,14 +22,12 @@ export interface UserRoleSummary {
   scopeOrgUnitType: string | null
   validFrom: Date
   validUntil: Date | null
-  revokedAt: Date | null
-  revocationReason: string | null
   isEffective: boolean
 }
 
 export interface UserListItem {
   id: string
-  displayName: string
+  realName: string
   email: string
   status: string
   lastLoginAt: Date | null
@@ -38,23 +36,29 @@ export interface UserListItem {
   studentProfile: {
     id: string
     studentNo: string
+    /** 姓名统一取 User.realName，学生档案不再保存第二份姓名 */
     name: string
-    classId: string
-    className: string
+    /** 未分班学生为 null */
+    classId: string | null
+    className: string | null
     enrollmentStatus: string
   } | null
   teacherProfile: {
     id: string
     teacherNo: string
-    departmentId: string
-    departmentName: string
-    employmentStatus: string
+    /** 姓名统一取 personnelProfile.user.realName */
+    realName: string
+    /** 正式组织归属取 personnelProfile.primaryOrganizationUnit（可为院系/专业/学校） */
+    organizationId: string
+    organizationName: string
+    organizationType: string
+    status: string
   } | null
 }
 
 const USER_SELECT = {
   id: true,
-  displayName: true,
+  realName: true,
   email: true,
   status: true,
   lastLoginAt: true,
@@ -64,19 +68,17 @@ const USER_SELECT = {
     select: {
       id: true,
       studentNo: true,
-      name: true,
       classId: true,
       enrollmentStatus: true,
       class: { select: { id: true, name: true } },
     },
   },
-  teacherProfile: {
+  // 教师身份挂在工作人员档案下：User 不再直接持有 teacherProfile 关系
+  personnelProfile: {
     select: {
-      id: true,
-      teacherNo: true,
-      departmentId: true,
-      employmentStatus: true,
-      department: { select: { id: true, name: true } },
+      primaryOrganizationUnitId: true,
+      primaryOrganization: { select: { id: true, name: true, type: true } },
+      teacherProfile: { select: { id: true, teacherNo: true, status: true } },
     },
   },
 } as const
@@ -87,13 +89,20 @@ const ROLE_SELECT = {
   scopeOrgUnitId: true,
   validFrom: true,
   validUntil: true,
-  revokedAt: true,
-  revocationReason: true,
   role: {
     select: { code: true, name: true, dataScope: true, status: true },
   },
   scopeOrgUnit: { select: { name: true, type: true } },
 } as const
+
+/** 列表/详情共用的授权上下文 */
+interface ListVisibilityContext {
+  studentScope: Set<string> | 'ALL' | 'NONE'
+  teacherScope: Set<string> | 'ALL' | 'NONE'
+  roleContext: { scope: Set<string> | 'ALL' | 'NONE'; canSeeUnscopedRoles: boolean }
+  qualifiedCoordinatorKeys: Set<string>
+  userOrgIds: string[]
+}
 
 function scopeSet(scope: OrganizationScope): Set<string> | 'ALL' | 'NONE' {
   if (scope.kind === 'ALL') return 'ALL'
@@ -113,7 +122,7 @@ function withinScope(scope: Set<string> | 'ALL' | 'NONE', id: string | null): bo
  * 用户账号查询
  *
  * 安全边界：
- * 1. 账号可见性由「学生档案班级 / 教师档案院系 / 有效管理角色 / 有效辅导员分配」决定；
+ * 1. 账号可见性由「学生档案班级 / 工作人员档案正式组织归属 / 有效管理角色 / 有效辅导员分配」决定；
  * 2. 每个关联档案单独授权，不因账号可见就泄露其他组织的数据；
  * 3. 角色摘要按调用者的角色分配读取范围再次过滤；
  * 4. 所有过滤条件在 Prisma where 阶段完成。
@@ -262,10 +271,10 @@ export class UsersService {
 
     const now = new Date()
 
+    // UserRole 只保存当前有效授权，撤销即删除，无需再判断 revokedAt
     const rows = await this.prisma.userRole.findMany({
       where: {
         scopeOrgUnitId: { in: orgIds },
-        revokedAt: null,
         validFrom: { lte: now },
         OR: [{ validUntil: null }, { validUntil: { gt: now } }],
         role: { code: 'CLASS_COORDINATOR', status: 'ACTIVE' },
@@ -313,12 +322,17 @@ export class UsersService {
     return {
       OR: [
         { studentProfile: { classId: { in: orgIds } } },
-        { teacherProfile: { departmentId: { in: orgIds } } },
+        {
+          // 教师账号可见性：正式组织归属落在范围内，且确实存在教师身份
+          personnelProfile: {
+            primaryOrganizationUnitId: { in: orgIds },
+            teacherProfile: { isNot: null },
+          },
+        },
         {
           userRoles: {
             some: {
               scopeOrgUnitId: { in: orgIds },
-              revokedAt: null,
               validFrom: { lte: now },
               OR: [{ validUntil: null }, { validUntil: { gt: now } }],
               role: { status: 'ACTIVE', code: { not: 'CLASS_COORDINATOR' } },
@@ -355,7 +369,7 @@ export class UsersService {
 
     if (query.keyword) {
       and.push({
-        OR: [{ displayName: { contains: query.keyword } }, { email: { contains: query.keyword } }],
+        OR: [{ realName: { contains: query.keyword } }, { email: { contains: query.keyword } }],
       })
     }
 
@@ -376,7 +390,6 @@ export class UsersService {
 
       const scopedFilter: Prisma.UserRoleWhereInput = {
         role: { code: query.roleCode, status: 'ACTIVE' },
-        revokedAt: null,
         validFrom: { lte: now },
         OR: [{ validUntil: null }, { validUntil: { gt: now } }],
         ...(scopeConditions.length > 0 ? { AND: scopeConditions } : {}),
@@ -406,47 +419,15 @@ export class UsersService {
       scopeOrgUnitId: string | null
       validFrom: Date
       validUntil: Date | null
-      revokedAt: Date | null
-      revocationReason: string | null
       role: { code: string; name: string; dataScope: string; status: string }
       scopeOrgUnit: { name: string; type: string } | null
     }>,
-    context: {
-      studentScope: Set<string> | 'ALL' | 'NONE'
-      teacherScope: Set<string> | 'ALL' | 'NONE'
-      roleContext: { scope: Set<string> | 'ALL' | 'NONE'; canSeeUnscopedRoles: boolean }
-      qualifiedCoordinatorKeys: Set<string>
-      userOrgIds: string[]
-    },
+    context: ListVisibilityContext,
   ): UserListItem {
     const now = new Date()
 
-    const studentProfile = user.studentProfile
-      ? withinScope(context.studentScope, user.studentProfile.classId) &&
-        context.userOrgIds.includes(user.studentProfile.classId)
-        ? {
-            id: user.studentProfile.id,
-            studentNo: user.studentProfile.studentNo,
-            name: user.studentProfile.name,
-            classId: user.studentProfile.classId,
-            className: user.studentProfile.class.name,
-            enrollmentStatus: user.studentProfile.enrollmentStatus,
-          }
-        : null
-      : null
-
-    const teacherProfile = user.teacherProfile
-      ? withinScope(context.teacherScope, user.teacherProfile.departmentId) &&
-        context.userOrgIds.includes(user.teacherProfile.departmentId)
-        ? {
-            id: user.teacherProfile.id,
-            teacherNo: user.teacherProfile.teacherNo,
-            departmentId: user.teacherProfile.departmentId,
-            departmentName: user.teacherProfile.department.name,
-            employmentStatus: user.teacherProfile.employmentStatus,
-          }
-        : null
-      : null
+    const studentProfile = this.toStudentSummary(user, context)
+    const teacherProfile = this.toTeacherSummary(user, context)
 
     const roles = roleRows
       .filter((row) => row.userId === user.id)
@@ -462,8 +443,8 @@ export class UsersService {
         return context.roleContext.canSeeUnscopedRoles
       })
       .map((row) => {
+        // UserRole 只保存当前授权，撤销即删除，因此只需校验时间窗与角色状态
         const windowEffective =
-          row.revokedAt === null &&
           row.validFrom.getTime() <= now.getTime() &&
           (!row.validUntil || row.validUntil.getTime() > now.getTime()) &&
           row.role.status === 'ACTIVE'
@@ -486,15 +467,13 @@ export class UsersService {
           scopeOrgUnitType: row.scopeOrgUnit?.type ?? null,
           validFrom: row.validFrom,
           validUntil: row.validUntil,
-          revokedAt: row.revokedAt,
-          revocationReason: row.revocationReason,
           isEffective: windowEffective && scopeActive && qualificationEffective,
         }
       })
 
     return {
       id: user.id,
-      displayName: user.displayName,
+      realName: user.realName,
       email: user.email,
       status: user.status,
       lastLoginAt: user.lastLoginAt,
@@ -502,6 +481,69 @@ export class UsersService {
       roles,
       studentProfile,
       teacherProfile,
+    }
+  }
+
+  /**
+   * 学生档案摘要
+   *
+   * 1. 姓名统一取 User.realName，学生档案不再保存姓名；
+   * 2. classId 允许为空（尚未分班），未分班学生不属于任何班级范围，故不外泄档案摘要。
+   */
+  private toStudentSummary(
+    user: Prisma.UserGetPayload<{ select: typeof USER_SELECT }>,
+    context: ListVisibilityContext,
+  ): UserListItem['studentProfile'] {
+    const profile = user.studentProfile
+
+    if (!profile || !profile.classId) return null
+    if (!withinScope(context.studentScope, profile.classId)) return null
+    if (!context.userOrgIds.includes(profile.classId)) return null
+
+    return {
+      id: profile.id,
+      studentNo: profile.studentNo,
+      name: user.realName,
+      classId: profile.classId,
+      className: profile.class?.name ?? null,
+      enrollmentStatus: profile.enrollmentStatus,
+    }
+  }
+
+  /**
+   * 教师档案摘要
+   *
+   * 教师身份挂在工作人员档案下：
+   * - 所属组织取 personnelProfile.primaryOrganization（可能为学校/院系/专业）；
+   * - 任职状态取 teacherProfile.status；
+   * - 姓名即本人 User.realName，与 personnelProfile.user.realName 为同一行数据，
+   *   因此不重复关联一次 user，避免多余查询。
+   */
+  private toTeacherSummary(
+    user: Prisma.UserGetPayload<{ select: typeof USER_SELECT }>,
+    context: ListVisibilityContext,
+  ): UserListItem['teacherProfile'] {
+    const personnel = user.personnelProfile
+    const teacher = personnel?.teacherProfile
+
+    if (!personnel || !teacher) return null
+
+    const organization = personnel.primaryOrganization
+
+    if (!withinScope(context.teacherScope, personnel.primaryOrganizationUnitId)) {
+      return null
+    }
+
+    if (!context.userOrgIds.includes(organization.id)) return null
+
+    return {
+      id: teacher.id,
+      teacherNo: teacher.teacherNo,
+      realName: user.realName,
+      organizationId: organization.id,
+      organizationName: organization.name,
+      organizationType: organization.type,
+      status: teacher.status,
     }
   }
 }

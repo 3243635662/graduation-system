@@ -53,15 +53,18 @@ function getRequestMeta(request: Request) {
 }
 
 /**
- * 登录限流维度：IP + 邮箱，防止对同一账号暴力破解。
+ * 登录限流维度：IP + 登录标识，防止对同一账号暴力破解。
  *
+ * 登录标识（identifier）可以是邮箱、学号或工号，统一转小写后参与限流，
+ * 避免同一邮箱因大小写差异绕过计数。
  * 此时 body 尚未经过 Zod 校验，只做防御性读取。
  */
 function loginRateLimitKey(request: Request): string {
-  const body = request.body as { email?: unknown } | undefined
-  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const body = request.body as { identifier?: unknown } | undefined
+  const identifier =
+    typeof body?.identifier === 'string' ? body.identifier.trim().toLowerCase() : ''
 
-  return `login:${request.ip ?? 'unknown'}:${email}`
+  return `login:${request.ip ?? 'unknown'}:${identifier}`
 }
 
 @ApiTags('Auth - 身份认证')
@@ -130,7 +133,7 @@ export class AuthController {
   @ApiOperation({
     summary: '学生注册（需要邮箱验证码，默认 STUDENT 角色）',
     description:
-      '请先调用 POST /api/auth/email-codes/register 获取验证码。验证码一次性有效，校验与消费在同一次 Redis 原子操作中完成。',
+      '请先调用 POST /api/auth/email-codes/register 获取验证码。请求体使用 realName（真实姓名，2-50 个字符，只允许中文、英文字母、间隔号与空格），不使用昵称或显示名。验证码一次性有效，校验与消费在同一次 Redis 原子操作中完成。',
   })
   @ApiSuccessResponse({
     status: 201,
@@ -172,7 +175,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(RateLimitGuard)
   @RateLimit({ windowMs: 60_000, limit: 5, keyBy: loginRateLimitKey })
-  @ApiOperation({ summary: '账号密码登录' })
+  @ApiOperation({
+    summary: '账号密码登录（邮箱 / 学号 / 工号三选一）',
+    description:
+      '请求体为 { identifier, password }：identifier 可以是邮箱（含 @）、学号或工号，三者任选其一，' +
+      '示例：{ "identifier": "2021001001", "password": "********" }。' +
+      '账号不存在与密码错误返回同一错误信息，避免账号枚举。',
+  })
   @ApiSuccessResponse({ description: '登录成功', dataSchema: authResultSchema })
   @ApiErrorResponse({
     status: 400,
@@ -180,7 +189,7 @@ export class AuthController {
     message: '请求参数校验失败',
     dataSchema: validationIssuesSchema,
   })
-  @ApiErrorResponse({ status: 401, code: 40100, message: '邮箱或密码错误' })
+  @ApiErrorResponse({ status: 401, code: 40100, message: '账号或密码错误' })
   @ApiErrorResponse({ status: 403, code: 40300, message: '账号已被禁用，请联系管理员' })
   @ApiErrorResponse({ status: 429, code: 42900, message: '请求过于频繁，请稍后再试' })
   async login(

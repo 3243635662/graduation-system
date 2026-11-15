@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common'
 
 import { RedisModule } from './common/redis/redis.module.js'
+import { AuditLogModule } from './modules/audit/audit-log.module.js'
+import { AuditModule } from './modules/audit/audit.module.js'
 import { AuthModule } from './modules/auth/auth.module.js'
 import { MenusModule } from './modules/menus/menus.module.js'
 import { ProfilesModule } from './modules/profiles/profiles.module.js'
@@ -14,6 +16,8 @@ import { PrismaModule } from './prisma/prisma.module.js'
   imports: [
     PrismaModule,
     RedisModule,
+    AuditModule,
+    AuditLogModule,
     RolesModule,
     OrganizationModule,
     RoleAssignmentsModule,

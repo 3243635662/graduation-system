@@ -13,7 +13,7 @@ export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus]
  * 角色摘要
  *
  * 只承载「这个用户在哪个组织范围内拥有哪个角色」，
- * 不返回权限编码、菜单或数据范围策略，避免客户端据此自行判断授权。
+ * 不返回数据范围策略，避免客户端据此自行判断授权。
  *
  * scopeOrgUnitId 为 null 表示该角色不绑定组织节点
  * （如 PLATFORM_SUPER_ADMIN / TEACHER / STUDENT）。
@@ -30,13 +30,20 @@ export interface RoleSummary {
 
 /**
  * 当前登录用户信息
+ *
+ * 姓名统一使用真名 realName；头像统一取 avatarUrl。
+ * permissions 只用于前端决定按钮/入口是否展示，
+ * 真正的授权仍由后端在每次请求时实时校验。
  */
 export interface AuthUser {
   id: string
   email: string
-  displayName: string
+  phone: string | null
+  realName: string
+  avatarUrl: string | null
   status: UserStatus
   roles: RoleSummary[]
+  permissions: string[]
 }
 
 /**
@@ -56,7 +63,7 @@ export interface AuthResult {
  * emailCode 为邮箱验证码（6 位数字），必须先通过发送验证码接口获取。
  */
 export interface RegisterInput {
-  displayName: string
+  realName: string
   email: string
   emailCode: string
   password: string
@@ -85,8 +92,21 @@ export interface SendEmailCodeResult {
 
 /**
  * 登录输入
+ *
+ * identifier 可以是邮箱、学号或工号。
  */
 export interface LoginInput {
-  email: string
+  identifier: string
   password: string
+}
+
+/**
+ * 修改本人公共资料
+ *
+ * 学号、工号、班级与正式组织归属不允许通过该接口修改。
+ */
+export interface UpdateMyProfileInput {
+  realName?: string
+  phone?: string | null
+  avatarUrl?: string | null
 }

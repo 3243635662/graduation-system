@@ -5,12 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service.js'
 import type { EffectiveRoleAssignment } from '../rbac/authorization/permission.service.js'
 import { OrganizationService } from '../rbac/organizations/organization.service.js'
 
-export type EligibilityBasis =
-  | 'STUDENT_MONITOR'
-  | 'CLASS_ASSISTANT'
-  | 'HEAD_TEACHER'
-  | 'COUNSELOR'
-  | 'SCHOOL_OVERRIDE'
+export type EligibilityBasis = 'STUDENT_SELF' | 'HEAD_TEACHER' | 'COUNSELOR' | 'SCHOOL_OVERRIDE'
 
 export interface CoordinatorEligibilityResult {
   eligible: boolean
@@ -42,9 +37,8 @@ function minDate(current: Date | null, next: Date | null): Date | null {
 /**
  * 协管员资格服务
  *
- * 五种资格来源，全部满足时全部返回（不因命中第一个而提前返回）：
- * - STUDENT_MONITOR：本班在籍学生（仅表示可被选择的资格条件，不等于自动成为班长）
- * - CLASS_ASSISTANT：同专业在籍学生（不等于自动成为班助）
+ * 四种资格来源，全部满足时全部返回（不因命中第一个而提前返回）：
+ * - STUDENT_SELF：本人当前班级的在籍学生（只能协管本班）
  * - HEAD_TEACHER：有效班主任任职
  * - COUNSELOR：有效辅导员分配
  * - SCHOOL_OVERRIDE：学校管理员特殊覆盖
@@ -54,7 +48,6 @@ function minDate(current: Date | null, next: Date | null): Date | null {
  *
  * 重要：符合资格只代表该用户可以被管理员选择，
  * 正式协管员身份仍必须通过显式创建 CLASS_COORDINATOR UserRole 产生。
- * 系统不会因为学生是班长/班助的候选人就自动授予角色。
  */
 @Injectable()
 export class CoordinatorEligibilityService {
@@ -166,7 +159,6 @@ export class CoordinatorEligibilityService {
    *
    * 用于用户列表的组织可见性过滤与逐条角色有效性判断：
    * 只做一次批量查询，不按用户 N+1。
-   * 入参中的分配必须已经通过 UserRole 有效期/撤销/角色启用过滤。
    */
   async filterQualifiedUserIds(
     rows: Array<{ userId: string; classId: string }>,
@@ -192,8 +184,11 @@ export class CoordinatorEligibilityService {
           select: { userId: true, classId: true },
         }),
         db.teacherProfile.findMany({
-          where: { userId: { in: userIds }, employmentStatus: 'ACTIVE' },
-          select: { userId: true },
+          where: {
+            status: 'ACTIVE',
+            personnelProfile: { userId: { in: userIds }, status: 'ACTIVE' },
+          },
+          select: { id: true, personnelProfile: { select: { userId: true } } },
         }),
         db.teacherClassDuty.findMany({
           where: {
@@ -201,9 +196,15 @@ export class CoordinatorEligibilityService {
             revokedAt: null,
             validFrom: { lte: now },
             OR: [{ validUntil: null }, { validUntil: { gt: now } }],
-            teacher: { userId: { in: userIds }, employmentStatus: 'ACTIVE' },
+            teacher: {
+              status: 'ACTIVE',
+              personnelProfile: { userId: { in: userIds }, status: 'ACTIVE' },
+            },
           },
-          select: { classId: true, teacher: { select: { userId: true } } },
+          select: {
+            classId: true,
+            teacher: { select: { personnelProfile: { select: { userId: true } } } },
+          },
         }),
         db.counselorClassAssignment.findMany({
           where: {
@@ -245,18 +246,17 @@ export class CoordinatorEligibilityService {
       }
     }
 
-    const studentByUser = new Map(students.map((item) => [item.userId, item.classId]))
-    const teacherUserIds = new Set(teachers.map((item) => item.userId))
+    const studentClassByUser = new Map<string, string>()
 
-    const studentClassIds = [...new Set(students.map((item) => item.classId))]
-    const studentClasses = await db.organizationUnit.findMany({
-      where: { id: { in: studentClassIds } },
-      select: { id: true, parentId: true },
-    })
-    const majorByStudentClass = new Map(studentClasses.map((item) => [item.id, item.parentId]))
-    const classMajor = new Map(classNodes.map((node) => [node.id, node.parentId]))
+    for (const item of students) {
+      if (item.classId) studentClassByUser.set(item.userId, item.classId)
+    }
 
-    const dutyKeys = new Set(duties.map((item) => `${item.teacher.userId}:${item.classId}`))
+    const teacherUserIds = new Set(teachers.map((item) => item.personnelProfile.userId))
+
+    const dutyKeys = new Set(
+      duties.map((item) => `${item.teacher.personnelProfile.userId}:${item.classId}`),
+    )
     const counselorKeys = new Set(counselors.map((item) => `${item.userId}:${item.classId}`))
     const overrideKeys = new Set(overrides.map((item) => `${item.userId}:${item.classId}`))
 
@@ -264,28 +264,17 @@ export class CoordinatorEligibilityService {
       if (!activeUserIds.has(row.userId)) continue
       if (!activeClassIds.has(row.classId)) continue
 
-      const studentClassId = studentByUser.get(row.userId)
+      // 学生只能协管自己当前班级
+      if (studentClassByUser.get(row.userId) === row.classId) {
+        qualified.add(`${row.userId}:${row.classId}`)
 
-      if (studentClassId) {
-        if (studentClassId === row.classId) {
-          qualified.add(`${row.userId}:${row.classId}`)
-
-          continue
-        }
-
-        if (majorByStudentClass.get(studentClassId) === classMajor.get(row.classId)) {
-          qualified.add(`${row.userId}:${row.classId}`)
-
-          continue
-        }
+        continue
       }
 
-      if (teacherUserIds.has(row.userId)) {
-        if (dutyKeys.has(`${row.userId}:${row.classId}`)) {
-          qualified.add(`${row.userId}:${row.classId}`)
+      if (teacherUserIds.has(row.userId) && dutyKeys.has(`${row.userId}:${row.classId}`)) {
+        qualified.add(`${row.userId}:${row.classId}`)
 
-          continue
-        }
+        continue
       }
 
       if (counselorKeys.has(`${row.userId}:${row.classId}`)) {
@@ -339,9 +328,13 @@ export class CoordinatorEligibilityService {
           where: { userId },
           select: { classId: true, enrollmentStatus: true },
         }),
-        db.teacherProfile.findUnique({
-          where: { userId },
-          select: { id: true, employmentStatus: true },
+        db.teacherProfile.findFirst({
+          where: { personnelProfile: { userId } },
+          select: {
+            id: true,
+            status: true,
+            personnelProfile: { select: { status: true, primaryOrganizationUnitId: true } },
+          },
         }),
         db.teacherClassDuty.findMany({
           where: {
@@ -349,7 +342,7 @@ export class CoordinatorEligibilityService {
             revokedAt: null,
             validFrom: { lte: now },
             OR: [{ validUntil: null }, { validUntil: { gt: now } }],
-            teacher: { userId, employmentStatus: 'ACTIVE' },
+            teacher: { status: 'ACTIVE', personnelProfile: { userId, status: 'ACTIVE' } },
           },
           select: { classId: true, validUntil: true },
         }),
@@ -379,14 +372,6 @@ export class CoordinatorEligibilityService {
         }),
       ])
 
-    const studentMajorByClass =
-      studentProfile && studentProfile.enrollmentStatus === 'ACTIVE'
-        ? await db.organizationUnit.findUnique({
-            where: { id: studentProfile.classId },
-            select: { parentId: true },
-          })
-        : null
-
     for (const node of classNodes) {
       const pathActive =
         node.type === 'CLASS' && (await this.organizationService.isPathActive(node.id))
@@ -410,23 +395,17 @@ export class CoordinatorEligibilityService {
       context.expiresAt = minDate(context.expiresAt, expiresAt)
     }
 
-    if (studentProfile && studentProfile.enrollmentStatus === 'ACTIVE') {
-      if (uniqueClassIds.includes(studentProfile.classId)) {
-        addBasis(studentProfile.classId, 'STUDENT_MONITOR')
-      }
-
-      const studentMajorId = studentMajorByClass?.parentId ?? null
-
-      if (studentMajorId) {
-        for (const node of classNodes) {
-          if (node.parentId === studentMajorId && node.id !== studentProfile.classId) {
-            addBasis(node.id, 'CLASS_ASSISTANT')
-          }
-        }
-      }
+    // 学生只能协管本人当前班级
+    if (
+      studentProfile &&
+      studentProfile.enrollmentStatus === 'ACTIVE' &&
+      studentProfile.classId &&
+      uniqueClassIds.includes(studentProfile.classId)
+    ) {
+      addBasis(studentProfile.classId, 'STUDENT_SELF')
     }
 
-    if (teacherProfile && teacherProfile.employmentStatus === 'ACTIVE') {
+    if (teacherProfile && teacherProfile.status === 'ACTIVE') {
       for (const duty of duties) {
         addBasis(duty.classId, 'HEAD_TEACHER', duty.validUntil)
       }
