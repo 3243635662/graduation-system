@@ -11,6 +11,9 @@ stats.html
 
 # test
 coverage/
+# 本地编写的单位测试不入库
+*.spec.ts
+*.test.ts
 
 # env
 .env

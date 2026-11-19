@@ -109,11 +109,12 @@ enum AuditResult {
 // - realName 为本人真实姓名，全系统统一展示；不引入昵称/显示名概念。
 // - 登录标识支持三种：邮箱、学号（学生）、工号（教师/工作人员）。
 //   学号与工号分别存放在档案表，因此登录时按标识形态解析到 userId。
-// - email 仍是注册与邮箱验证码的唯一键，保留既有注册链路。
+// - email 仍是注册与邮箱验证码的唯一键，保留既有注册链路；
+//   个人中心换绑邮箱时会先解绑（置 null），再绑定新邮箱。
 
 model User {
   id              String    @id @default(uuid()) @db.Char(36)
-  email           String    @unique @db.VarChar(191)
+  email           String?   @unique @db.VarChar(191)
   emailVerifiedAt DateTime? @map("email_verified_at") @db.DateTime(3)
   phone           String?   @unique @db.VarChar(32)
   realName        String    @map("real_name") @db.VarChar(50)

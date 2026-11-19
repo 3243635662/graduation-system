@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { loginSchema, profileSchema, registerSchema, sendEmailCodeSchema } from '../auth.schema'
+import {
+  bindEmailSchema,
+  emailChangePasswordSchema,
+  loginSchema,
+  profileSchema,
+  registerSchema,
+  sendEmailCodeSchema,
+} from '../auth.schema'
 
 describe('auth schemas', () => {
   describe('loginSchema', () => {
@@ -140,6 +147,23 @@ describe('auth schemas', () => {
           ]),
         )
       }
+    })
+  })
+
+  describe('邮箱换绑校验', () => {
+    it('当前密码必须填写', () => {
+      expect(emailChangePasswordSchema.safeParse('').success).toBe(false)
+      expect(emailChangePasswordSchema.safeParse('current-password').success).toBe(true)
+    })
+
+    it('换绑表单要求合法邮箱与 6 位数字验证码', () => {
+      const valid = { email: '  New@Example.com ', emailCode: '123456' }
+      const result = bindEmailSchema.safeParse(valid)
+
+      expect(result.success).toBe(true)
+      expect(result.success && result.data.email).toBe('new@example.com')
+      expect(bindEmailSchema.safeParse({ ...valid, emailCode: '12345' }).success).toBe(false)
+      expect(bindEmailSchema.safeParse({ ...valid, email: 'not-an-email' }).success).toBe(false)
     })
   })
 

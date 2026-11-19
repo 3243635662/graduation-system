@@ -77,36 +77,13 @@ export class CoordinatorOverrideService {
         },
       })
 
-      const role = await tx.role.findUnique({
-        where: { code: 'CLASS_COORDINATOR' },
-        select: { id: true },
-      })
-
-      if (!role) throw new NotFoundException('角色模板未初始化')
-
-      // UserRole 仅保存当前授权：存在即有效，撤销即删除
-      const assignment = await tx.userRole.findFirst({
-        where: {
-          userId: input.userId,
-          roleId: role.id,
-          scopeOrgUnitId: input.classId,
-        },
-        select: { id: true },
-      })
-
-      if (!assignment) {
-        await tx.userRole.create({
-          data: {
-            userId: input.userId,
-            roleId: role.id,
-            scopeOrgUnitId: input.classId,
-            // 组织级授权：scopeKey 必须与 scopeOrgUnitId 一致（唯一键 uk_user_role_scope）
-            scopeKey: input.classId,
-            assignedById: actorId,
-            createdById: actorId,
-          },
-        })
-      }
+      await this.lifecycle.ensureClassCoordinatorRole(
+        input.userId,
+        input.classId,
+        actorId,
+        override.validFrom,
+        tx,
+      )
 
       return override
     })

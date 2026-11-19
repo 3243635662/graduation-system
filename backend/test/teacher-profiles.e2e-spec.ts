@@ -184,7 +184,7 @@ describe('教师档案 API (e2e)', () => {
       select: { email: true },
     })
 
-    schoolToken = await login(schoolAdmin.email, process.env['SUPER_ADMIN_PASSWORD'] ?? '')
+    schoolToken = await login(schoolAdmin.email ?? '', process.env['SUPER_ADMIN_PASSWORD'] ?? '')
   }, 60_000)
 
   afterAll(async () => {

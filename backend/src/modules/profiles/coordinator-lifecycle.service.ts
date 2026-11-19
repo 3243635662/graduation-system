@@ -58,6 +58,44 @@ export class CoordinatorLifecycleService {
   }
 
   /**
+   * 业务职责创建时补齐班级协管角色。职责记录仍是数据范围的唯一来源；
+   * 这里不把辅导员映射成教师，也不会创建额外的角色类型。
+   */
+  async ensureClassCoordinatorRole(
+    userId: string,
+    classId: string,
+    actorId: string,
+    validFrom: Date,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    const role = await tx.role.findUnique({
+      where: { code: ROLE_CLASS_COORDINATOR },
+      select: { id: true },
+    })
+
+    if (!role) throw new Error('CLASS_COORDINATOR 角色模板未初始化')
+
+    const existing = await tx.userRole.findUnique({
+      where: { userId_roleId_scopeKey: { userId, roleId: role.id, scopeKey: classId } },
+      select: { id: true },
+    })
+
+    if (existing) return
+
+    await tx.userRole.create({
+      data: {
+        userId,
+        roleId: role.id,
+        scopeOrgUnitId: classId,
+        scopeKey: classId,
+        assignedById: actorId,
+        createdById: actorId,
+        validFrom,
+      },
+    })
+  }
+
+  /**
    * 学生转班/离班时终止「仅靠本班学生身份」获得的旧班级协管员分配
    *
    * 任务书规定学生只能协管本人当前班级；转班后原班级资格随之消失，

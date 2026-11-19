@@ -37,13 +37,19 @@ export interface RoleSummary {
  */
 export interface AuthUser {
   id: string
-  email: string
+  /** 换绑流程中解绑原邮箱后短暂为 null；重新绑定成功后恢复 */
+  email: string | null
   phone: string | null
   realName: string
   avatarUrl: string | null
   status: UserStatus
   roles: RoleSummary[]
   permissions: string[]
+  studentNo?: string | null
+  className?: string | null
+  teacherNo?: string | null
+  title?: string | null
+  organizationName?: string | null
 }
 
 /**
@@ -109,4 +115,47 @@ export interface UpdateMyProfileInput {
   realName?: string
   phone?: string | null
   avatarUrl?: string | null
+}
+
+/**
+ * 邮箱验证修改/重置密码输入
+ */
+export interface ResetPasswordInput {
+  email: string
+  emailCode: string
+  password: string
+  confirmPassword: string
+}
+
+/**
+ * 邮箱换绑：验证当前密码
+ *
+ * 验证成功后返回短期有效的 changeToken，后续解绑、发码与绑定都必须携带该令牌。
+ */
+export interface VerifyEmailChangePasswordInput {
+  password: string
+}
+
+export interface VerifyEmailChangePasswordResult {
+  changeToken: string
+  /** 令牌有效期（秒） */
+  expiresIn: number
+}
+
+/** 邮箱换绑：解绑原邮箱 */
+export interface UnbindEmailInput {
+  changeToken: string
+}
+
+/** 邮箱换绑：向新邮箱发送验证码 */
+export interface SendBindEmailCodeInput {
+  email: string
+  changeToken: string
+}
+
+/** 邮箱换绑：校验验证码并绑定新邮箱 */
+export interface BindEmailInput {
+  email: string
+  emailCode: string
+  changeToken: string
 }

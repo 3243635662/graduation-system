@@ -47,6 +47,15 @@ const form = useForm({
   validators: {
     onSubmit: loginSchema,
   },
+  /**
+   * 用户一开始重新编辑，上一次提交失败的提示（例如「账号或密码错误」）
+   * 就已经过时，立即清除，避免删空输入后还挂着旧错误。
+   */
+  listeners: {
+    onChange: () => {
+      submitError.value = ''
+    },
+  },
   onSubmit: async ({ value }) => {
     if (loading.value) return
 
@@ -153,7 +162,7 @@ const form = useForm({
                   type="text"
                   autocomplete="username"
                   :placeholder="$t('loginForm.identifierPlaceholder')"
-                  class="w-full h-11 pl-10 pr-3.5 rounded-xl bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
+                  class="w-full h-11 pl-10 pr-3.5 rounded-xl bg-muted/60 border border-input aria-invalid:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"
                   @blur="field.handleBlur"
@@ -186,7 +195,7 @@ const form = useForm({
                   :type="showPassword ? 'text' : 'password'"
                   autocomplete="current-password"
                   :placeholder="$t('loginForm.passwordPlaceholder')"
-                  class="w-full h-11 pl-10 pr-10 rounded-xl bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
+                  class="w-full h-11 pl-10 pr-10 rounded-xl bg-muted/60 border border-input aria-invalid:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"
                   @blur="field.handleBlur"

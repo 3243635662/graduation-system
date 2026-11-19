@@ -64,7 +64,7 @@ export class CounselorClassAssignmentService {
         throw new ConflictException('该时间段内已存在相同的辅导员分配')
       }
 
-      return tx.counselorClassAssignment.create({
+      const assignment = await tx.counselorClassAssignment.create({
         data: {
           userId: input.userId,
           classId: input.classId,
@@ -73,6 +73,17 @@ export class CounselorClassAssignmentService {
           assignedById: actorId,
         },
       })
+
+      // 辅导员职责与 CLASS_COORDINATOR 授权必须一致，但两者仍保留为独立业务记录。
+      await this.lifecycle.ensureClassCoordinatorRole(
+        input.userId,
+        input.classId,
+        actorId,
+        validFrom,
+        tx,
+      )
+
+      return assignment
     })
 
     await this.lifecycle.invalidateMenus('coordinator.counselor.create')

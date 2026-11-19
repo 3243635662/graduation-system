@@ -82,6 +82,16 @@ const form = useForm({
   validators: {
     onSubmit: registerSchema,
   },
+  /**
+   * 用户一开始重新编辑，上一次提交失败的提示（例如「该邮箱已被注册」）
+   * 就已经过时，立即清除，避免改完内容还挂着旧错误。
+   */
+  listeners: {
+    onChange: () => {
+      submitErrorKey.value = null
+      submitErrorText.value = ''
+    },
+  },
   onSubmit: async ({ value }) => {
     if (loading.value) return
 
@@ -217,7 +227,7 @@ async function handleSendCode(): Promise<void> {
                   type="text"
                   autocomplete="name"
                   :placeholder="$t('registerForm.realNamePlaceholder')"
-                  class="w-full h-10 pl-9 pr-3 rounded-lg bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
+                  class="w-full h-10 pl-9 pr-3 rounded-lg bg-muted/60 border border-input aria-invalid:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"
                   @blur="field.handleBlur"
@@ -250,7 +260,7 @@ async function handleSendCode(): Promise<void> {
                   type="email"
                   autocomplete="email"
                   :placeholder="$t('registerForm.emailPlaceholder')"
-                  class="w-full h-10 pl-9 pr-3 rounded-lg bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
+                  class="w-full h-10 pl-9 pr-3 rounded-lg bg-muted/60 border border-input aria-invalid:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"
                   @blur="field.handleBlur"
@@ -339,7 +349,7 @@ async function handleSendCode(): Promise<void> {
                   :type="showPassword ? 'text' : 'password'"
                   autocomplete="new-password"
                   :placeholder="$t('registerForm.passwordPlaceholder')"
-                  class="w-full h-10 pl-9 pr-9 rounded-lg bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
+                  class="w-full h-10 pl-9 pr-9 rounded-lg bg-muted/60 border border-input aria-invalid:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"
                   @blur="field.handleBlur"
@@ -384,7 +394,7 @@ async function handleSendCode(): Promise<void> {
                   :type="showConfirmPassword ? 'text' : 'password'"
                   autocomplete="new-password"
                   :placeholder="$t('registerForm.confirmPasswordPlaceholder')"
-                  class="w-full h-10 pl-9 pr-9 rounded-lg bg-muted/60 border border-input aria-[invalid=true]:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
+                  class="w-full h-10 pl-9 pr-9 rounded-lg bg-muted/60 border border-input aria-invalid:border-destructive/60 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200"
                   :aria-invalid="state.meta.errors.length > 0"
                   @input="field.handleChange(($event.target as HTMLInputElement).value)"
                   @blur="field.handleBlur"

@@ -1,6 +1,7 @@
 import { ApiError } from '@/lib/api-response'
 import { sendRegisterCode } from '@/services/api/auth.api'
 import { sendEmailCodeSchema } from '@/validators/auth.schema'
+import type { SendEmailCodeResult } from '@graduation/shared'
 import { computed, onScopeDispose, ref } from 'vue'
 
 /** 服务端返回 resendAfter 异常时的兜底冷却时间（秒） */
@@ -46,7 +47,7 @@ export function resolveRegisterErrorKey(error: unknown): string | null {
  * 只负责交互层：倒计时仅为展示，真正的发送限制由后端 Redis 强制实施，
  * 因此前端倒计时被篡改也无法绕过服务端限流。
  */
-export function useEmailCode() {
+export function useEmailCode(customSendFn?: (email: string) => Promise<SendEmailCodeResult>) {
   const sending = ref(false)
   const secondsLeft = ref(0)
   const sent = ref(false)
@@ -100,7 +101,8 @@ export function useEmailCode() {
     sending.value = true
 
     try {
-      const result = await sendRegisterCode(parsed.data.email)
+      const sender = customSendFn ?? sendRegisterCode
+      const result = await sender(parsed.data.email)
 
       sent.value = true
       startCountdown(result.resendAfter || FALLBACK_COOLDOWN_SECONDS)

@@ -1,6 +1,7 @@
 import type { SendEmailCodeResult } from '@graduation/shared'
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -15,8 +16,10 @@ import { EmailService } from '../email/email.service.js'
 import { loadEmailCodeConfig, type EmailCodeConfig } from './email-code.config.js'
 import {
   generateSixDigitCode,
+  hashBindEmailCode,
   hashIdentifier,
   hashRegisterCode,
+  hashResetPasswordCode,
   normalizeEmail,
 } from './email-code.crypto.js'
 import { buildEmailCodeKeys, type EmailCodeKeys } from './email-code.keys.js'
@@ -69,6 +72,8 @@ export class EmailCodeService {
   private readonly logger = new Logger(EmailCodeService.name)
   private readonly config: EmailCodeConfig
   private readonly keys: EmailCodeKeys
+  private readonly resetPasswordKeys: EmailCodeKeys
+  private readonly bindEmailKeys: EmailCodeKeys
 
   constructor(
     private readonly redis: RedisService,
@@ -77,6 +82,11 @@ export class EmailCodeService {
   ) {
     this.config = loadEmailCodeConfig()
     this.keys = buildEmailCodeKeys(this.config.keyPrefix)
+    const basePrefix = this.config.keyPrefix.includes(':')
+      ? this.config.keyPrefix.slice(0, this.config.keyPrefix.lastIndexOf(':'))
+      : 'auth:email-code'
+    this.resetPasswordKeys = buildEmailCodeKeys(`${basePrefix}:reset-password`)
+    this.bindEmailKeys = buildEmailCodeKeys(`${basePrefix}:bind-email`)
   }
 
   /** 验证码有效期（秒），用于响应体 */
@@ -199,6 +209,280 @@ export class EmailCodeService {
     )
 
     // 脚本固定返回状态字符串；出现其它返回类型说明脚本与调用侧已不一致，按「验证码不正确」处理
+    const status = typeof reply === 'string' ? reply : ''
+
+    switch (status) {
+      case 'SUCCESS':
+        return
+
+      case 'EXPIRED':
+        throw this.badRequest('验证码已过期，请重新获取', EMAIL_CODE_ERROR_CODE.EXPIRED)
+
+      case 'EXHAUSTED':
+        throw this.badRequest('验证码错误次数过多，请重新获取', EMAIL_CODE_ERROR_CODE.EXHAUSTED)
+
+      default:
+        throw this.badRequest('邮箱验证码不正确', EMAIL_CODE_ERROR_CODE.INVALID)
+    }
+  }
+
+  /**
+   * 发送重置/修改密码验证码
+   *
+   * 顺序：冷却 → 单邮箱小时限额 → 单 IP 小时限额 → 抢占冷却 → 检查账号是否存在 → 生成并发送。
+   * 账号不存在或非 ACTIVE 时静默返回相同结构，避免账号枚举。
+   */
+  async requestPasswordResetCode(
+    options: RequestRegisterCodeOptions,
+  ): Promise<SendEmailCodeResult> {
+    const email = normalizeEmail(options.email)
+    const emailHash = hashIdentifier(this.config.pepper, 'email', email)
+
+    // 1. 发送冷却
+    const cooldownTtl = await this.runRedis((client) =>
+      client.ttl(this.resetPasswordKeys.cooldown(emailHash)),
+    )
+
+    if (cooldownTtl > 0) {
+      throw this.tooManyRequests(cooldownTtl)
+    }
+
+    // 2. 单邮箱每小时上限
+    const emailSends = await this.incrementHourly(this.resetPasswordKeys.hourly(emailHash))
+
+    if (emailSends > this.config.maxSendsPerEmailPerHour) {
+      throw this.tooManyRequests()
+    }
+
+    // 3. 单 IP 每小时上限
+    if (options.ip) {
+      const ipHash = hashIdentifier(this.config.pepper, 'ip', options.ip)
+      const ipSends = await this.incrementHourly(this.resetPasswordKeys.ipHourly(ipHash))
+
+      if (ipSends > this.config.maxSendsPerIpHour) {
+        throw this.tooManyRequests()
+      }
+    }
+
+    // 4. 原子抢占冷却
+    const claimed = await this.runRedis((client) =>
+      client.set(this.resetPasswordKeys.cooldown(emailHash), '1', {
+        NX: true,
+        EX: this.config.resendIntervalSeconds,
+      }),
+    )
+
+    if (claimed === null) {
+      const retryAfter = await this.runRedis((client) =>
+        client.ttl(this.resetPasswordKeys.cooldown(emailHash)),
+      )
+
+      throw this.tooManyRequests(retryAfter)
+    }
+
+    // 5. 账号检查：不存在或非正常状态则静默返回成功结构，避免账号枚举
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, realName: true, status: true },
+    })
+
+    if (!existing || existing.status !== 'ACTIVE') {
+      return this.buildResult()
+    }
+
+    // 6. 生成验证码并保存摘要
+    const code = generateSixDigitCode()
+
+    await this.runRedis((client) =>
+      client.eval(SET_CODE_SCRIPT, {
+        keys: [this.resetPasswordKeys.code(emailHash)],
+        arguments: [
+          hashResetPasswordCode(this.config.pepper, email, code),
+          String(this.config.codeTtlSeconds),
+        ],
+      }),
+    )
+
+    // 7. 发送邮件
+    try {
+      await this.emailService.sendResetPasswordCode({
+        to: email,
+        code,
+        expiresInSeconds: this.config.codeTtlSeconds,
+        displayName: existing.realName,
+      })
+    } catch (error) {
+      await this.runRedis((client) => client.del(this.resetPasswordKeys.code(emailHash))).catch(
+        () => undefined,
+      )
+      await this.runRedis((client) =>
+        client.set(this.resetPasswordKeys.cooldown(emailHash), '1', {
+          EX: Math.min(this.config.resendIntervalSeconds * 2, MAX_FAILURE_COOLDOWN_SECONDS),
+        }),
+      ).catch(() => undefined)
+
+      if (error instanceof HttpException) throw error
+
+      throw new ServiceUnavailableException({
+        code: EMAIL_CODE_ERROR_CODE.UNAVAILABLE,
+        data: null,
+        message: '邮件发送失败，请稍后重试',
+      })
+    }
+
+    return this.buildResult()
+  }
+
+  /**
+   * 原子校验并消费修改密码验证码
+   */
+  async verifyAndConsumePasswordResetCode(options: VerifyRegisterCodeOptions): Promise<void> {
+    const email = normalizeEmail(options.email)
+    const emailHash = hashIdentifier(this.config.pepper, 'email', email)
+    const digest = hashResetPasswordCode(this.config.pepper, email, options.code)
+
+    const reply = await this.runRedis((client) =>
+      client.eval(VERIFY_AND_CONSUME_SCRIPT, {
+        keys: [this.resetPasswordKeys.code(emailHash)],
+        arguments: [digest, String(this.config.maxAttempts)],
+      }),
+    )
+
+    const status = typeof reply === 'string' ? reply : ''
+
+    switch (status) {
+      case 'SUCCESS':
+        return
+
+      case 'EXPIRED':
+        throw this.badRequest('验证码已过期，请重新获取', EMAIL_CODE_ERROR_CODE.EXPIRED)
+
+      case 'EXHAUSTED':
+        throw this.badRequest('验证码错误次数过多，请重新获取', EMAIL_CODE_ERROR_CODE.EXHAUSTED)
+
+      default:
+        throw this.badRequest('邮箱验证码不正确', EMAIL_CODE_ERROR_CODE.INVALID)
+    }
+  }
+
+  /**
+   * 发送换绑邮箱验证码
+   *
+   * 与注册/改密使用独立 scope 与 Redis key，避免验证码跨场景复用。
+   * 新邮箱已被占用时直接返回 409，解除冷却让用户可立即更换邮箱重试。
+   */
+  async requestBindEmailCode(options: RequestRegisterCodeOptions): Promise<SendEmailCodeResult> {
+    const email = normalizeEmail(options.email)
+    const emailHash = hashIdentifier(this.config.pepper, 'email', email)
+
+    const cooldownTtl = await this.runRedis((client) =>
+      client.ttl(this.bindEmailKeys.cooldown(emailHash)),
+    )
+
+    if (cooldownTtl > 0) {
+      throw this.tooManyRequests(cooldownTtl)
+    }
+
+    const emailSends = await this.incrementHourly(this.bindEmailKeys.hourly(emailHash))
+
+    if (emailSends > this.config.maxSendsPerEmailPerHour) {
+      throw this.tooManyRequests()
+    }
+
+    if (options.ip) {
+      const ipHash = hashIdentifier(this.config.pepper, 'ip', options.ip)
+      const ipSends = await this.incrementHourly(this.bindEmailKeys.ipHourly(ipHash))
+
+      if (ipSends > this.config.maxSendsPerIpHour) {
+        throw this.tooManyRequests()
+      }
+    }
+
+    const claimed = await this.runRedis((client) =>
+      client.set(this.bindEmailKeys.cooldown(emailHash), '1', {
+        NX: true,
+        EX: this.config.resendIntervalSeconds,
+      }),
+    )
+
+    if (claimed === null) {
+      const retryAfter = await this.runRedis((client) =>
+        client.ttl(this.bindEmailKeys.cooldown(emailHash)),
+      )
+
+      throw this.tooManyRequests(retryAfter)
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    })
+
+    if (existing) {
+      await this.runRedis((client) => client.del(this.bindEmailKeys.cooldown(emailHash))).catch(
+        () => undefined,
+      )
+
+      throw new ConflictException({
+        code: 40900,
+        data: null,
+        message: '该邮箱已被其他账号使用',
+      })
+    }
+
+    const code = generateSixDigitCode()
+
+    await this.runRedis((client) =>
+      client.eval(SET_CODE_SCRIPT, {
+        keys: [this.bindEmailKeys.code(emailHash)],
+        arguments: [
+          hashBindEmailCode(this.config.pepper, email, code),
+          String(this.config.codeTtlSeconds),
+        ],
+      }),
+    )
+
+    try {
+      await this.emailService.sendBindEmailCode({
+        to: email,
+        code,
+        expiresInSeconds: this.config.codeTtlSeconds,
+      })
+    } catch (error) {
+      await this.runRedis((client) => client.del(this.bindEmailKeys.code(emailHash))).catch(
+        () => undefined,
+      )
+      await this.runRedis((client) =>
+        client.set(this.bindEmailKeys.cooldown(emailHash), '1', {
+          EX: Math.min(this.config.resendIntervalSeconds * 2, MAX_FAILURE_COOLDOWN_SECONDS),
+        }),
+      ).catch(() => undefined)
+
+      if (error instanceof HttpException) throw error
+
+      throw new ServiceUnavailableException({
+        code: EMAIL_CODE_ERROR_CODE.UNAVAILABLE,
+        data: null,
+        message: '邮件发送失败，请稍后重试',
+      })
+    }
+
+    return this.buildResult()
+  }
+
+  /** 原子校验并消费换绑邮箱验证码 */
+  async verifyAndConsumeBindEmailCode(options: VerifyRegisterCodeOptions): Promise<void> {
+    const email = normalizeEmail(options.email)
+    const emailHash = hashIdentifier(this.config.pepper, 'email', email)
+    const digest = hashBindEmailCode(this.config.pepper, email, options.code)
+
+    const reply = await this.runRedis((client) =>
+      client.eval(VERIFY_AND_CONSUME_SCRIPT, {
+        keys: [this.bindEmailKeys.code(emailHash)],
+        arguments: [digest, String(this.config.maxAttempts)],
+      }),
+    )
+
     const status = typeof reply === 'string' ? reply : ''
 
     switch (status) {

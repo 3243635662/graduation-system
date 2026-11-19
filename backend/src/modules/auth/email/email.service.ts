@@ -2,7 +2,9 @@ import { Injectable, Logger, ServiceUnavailableException, type OnModuleInit } fr
 import { createTransport } from 'nodemailer'
 
 import { loadSmtpConfig, SmtpConfigError, type SmtpConfig } from './email.config.js'
+import { renderBindEmailCodeEmail } from './templates/bind-email-code.template.js'
 import { renderRegisterCodeEmail } from './templates/register-code.template.js'
+import { renderResetPasswordCodeEmail } from './templates/reset-password-code.template.js'
 
 type MailTransporter = ReturnType<typeof createTransport>
 
@@ -83,6 +85,56 @@ export class EmailService implements OnModuleInit {
     } catch (error) {
       // 只记录错误摘要：不含授权码、不含验证码、不含收件人正文
       this.logger.error(`注册验证码邮件发送失败：${this.describeError(error)}`)
+
+      throw createServiceUnavailable('邮件发送失败，请稍后重试')
+    }
+  }
+
+  /** 发送重置/修改密码验证码邮件 */
+  async sendResetPasswordCode(options: SendRegisterCodeOptions): Promise<void> {
+    const { transporter, config } = this.ensureTransporter()
+    const mail = renderResetPasswordCodeEmail({
+      code: options.code,
+      expiresInSeconds: options.expiresInSeconds,
+      appName: config.fromName,
+      displayName: options.displayName ?? null,
+    })
+
+    try {
+      await transporter.sendMail({
+        from: { name: config.fromName, address: config.from },
+        to: options.to,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      })
+    } catch (error) {
+      this.logger.error(`修改密码验证码邮件发送失败：${this.describeError(error)}`)
+
+      throw createServiceUnavailable('邮件发送失败，请稍后重试')
+    }
+  }
+
+  /** 发送更换绑定邮箱验证码邮件 */
+  async sendBindEmailCode(options: SendRegisterCodeOptions): Promise<void> {
+    const { transporter, config } = this.ensureTransporter()
+    const mail = renderBindEmailCodeEmail({
+      code: options.code,
+      expiresInSeconds: options.expiresInSeconds,
+      appName: config.fromName,
+      displayName: options.displayName ?? null,
+    })
+
+    try {
+      await transporter.sendMail({
+        from: { name: config.fromName, address: config.from },
+        to: options.to,
+        subject: mail.subject,
+        text: mail.text,
+        html: mail.html,
+      })
+    } catch (error) {
+      this.logger.error(`换绑邮箱验证码邮件发送失败：${this.describeError(error)}`)
 
       throw createServiceUnavailable('邮件发送失败，请稍后重试')
     }

@@ -2,9 +2,15 @@ import { apiRequest } from '@/lib/api-client'
 import type {
   AuthResult,
   AuthUser,
+  BindEmailInput,
   LoginInput,
   RegisterInput,
+  ResetPasswordInput,
+  SendBindEmailCodeInput,
   SendEmailCodeResult,
+  UnbindEmailInput,
+  VerifyEmailChangePasswordInput,
+  VerifyEmailChangePasswordResult,
 } from '@graduation/shared'
 
 /**
@@ -31,6 +37,62 @@ export function sendRegisterCode(email: string): Promise<SendEmailCodeResult> {
   return apiRequest<SendEmailCodeResult>('/auth/email-codes/register', {
     method: 'POST',
     body: { email },
+  })
+}
+
+/**
+ * 发送修改/重置密码邮箱验证码
+ */
+export function sendResetPasswordCode(email: string): Promise<SendEmailCodeResult> {
+  return apiRequest<SendEmailCodeResult>('/auth/email-codes/reset-password', {
+    method: 'POST',
+    body: { email },
+  })
+}
+
+/**
+ * 邮箱验证码修改/重置密码
+ */
+export function resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>('/auth/reset-password', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+/** 换绑第一步：验证当前密码，换取短期令牌 */
+export function verifyEmailChangePassword(
+  password: string,
+): Promise<VerifyEmailChangePasswordResult> {
+  const input: VerifyEmailChangePasswordInput = { password }
+
+  return apiRequest<VerifyEmailChangePasswordResult>('/auth/email-change/verify-password', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+/** 换绑第二步：解绑原邮箱 */
+export function unbindEmail(input: UnbindEmailInput): Promise<{ email: null }> {
+  return apiRequest<{ email: null }>('/auth/email-change/unbind', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+/** 换绑第三步：向新邮箱发送验证码 */
+export function sendBindEmailCode(input: SendBindEmailCodeInput): Promise<SendEmailCodeResult> {
+  return apiRequest<SendEmailCodeResult>('/auth/email-codes/bind-email', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+/** 换绑第四步：校验验证码并绑定新邮箱 */
+export function bindEmail(input: BindEmailInput): Promise<AuthUser> {
+  return apiRequest<AuthUser>('/auth/email-change/bind', {
+    method: 'POST',
+    body: input,
   })
 }
 

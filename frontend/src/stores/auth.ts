@@ -2,7 +2,13 @@ import { setAccessToken } from '@/lib/access-token'
 import { onSessionRefreshed } from '@/lib/auth-events'
 import * as authApi from '@/services/api/auth.api'
 import * as usersApi from '@/services/api/users.api'
-import type { AuthUser, LoginInput, RegisterInput, UpdateMyProfileInput } from '@graduation/shared'
+import type {
+  AuthUser,
+  LoginInput,
+  RegisterInput,
+  ResetPasswordInput,
+  UpdateMyProfileInput,
+} from '@graduation/shared'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 
@@ -71,17 +77,45 @@ export const useAuthStore = defineStore('auth', () => {
     return currentUser
   }
 
+  /** 用接口返回的最新资料替换当前用户（邮箱换绑成功后使用） */
+  function setUser(nextUser: AuthUser): void {
+    user.value = nextUser
+  }
+
   /**
    * 修改本人资料
    *
-   * 后端返回最新的 AuthUser，这里直接替换 Store 中的用户，
-   * 侧边栏头像与姓名无需额外刷新即可同步。
+   * 先浅合并更新后的字段，再调用 fetchMe 获取最新的完整 AuthUser（包含 roles 与 permissions），
+   * 确保左侧名片、侧边栏头像与姓名即时响应且角色授权不丢失。
    */
   async function updateProfile(input: UpdateMyProfileInput): Promise<AuthUser> {
     const nextUser = await usersApi.updateMyProfile(input)
-    user.value = nextUser
+    if (user.value) {
+      user.value = {
+        ...user.value,
+        ...nextUser,
+      }
+    } else {
+      user.value = nextUser
+    }
 
-    return nextUser
+    try {
+      return await fetchMe()
+    } catch {
+      return user.value as AuthUser
+    }
+  }
+
+  /**
+   * 通过邮箱验证码修改/重置密码
+   *
+   * 密码修改成功后后端会销毁会话，前端主动清理 Session，引导用户重新登录。
+   */
+  async function resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
+    const result = await authApi.resetPassword(input)
+    clearSession()
+
+    return result
   }
 
   async function runInitialize(): Promise<void> {
@@ -136,7 +170,9 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     fetchMe,
+    setUser,
     updateProfile,
+    resetPassword,
     initialize,
   }
 })

@@ -70,3 +70,25 @@ export interface CoordinatorOverrideItem {
   grantedByName: string
   isEffective: boolean
 }
+
+/** GET /my-classes：只返回当前用户仍有效且已获 CLASS_COORDINATOR 授权的职责。 */
+export interface MyClassItem {
+  classId: string
+  classCode: string
+  className: string
+  responsibilities: Array<{
+    type: 'COUNSELOR' | 'COORDINATOR_AUTHORIZATION'
+    recordId: string
+    validFrom: string
+    validUntil: string | null
+    reason?: string
+  }>
+}
+
+export interface MyTeacherClassDutyItem {
+  id: string
+  dutyType: string
+  validFrom: string
+  validUntil: string | null
+  class: { id: string; code: string; name: string; status: string }
+}

@@ -208,7 +208,7 @@ describe('审计日志 API (e2e)', () => {
       select: { email: true },
     })
 
-    schoolToken = await login(schoolAdmin.email, process.env['SUPER_ADMIN_PASSWORD'] ?? '')
+    schoolToken = await login(schoolAdmin.email ?? '', process.env['SUPER_ADMIN_PASSWORD'] ?? '')
   }, 120_000)
 
   afterEach(() => {

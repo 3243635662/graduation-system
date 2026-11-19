@@ -534,7 +534,8 @@ export class UsersService {
     return {
       id: user.id,
       realName: user.realName,
-      email: user.email,
+      // 换绑过程中邮箱可为空；用户管理列表仍以空串展示未绑定状态
+      email: user.email ?? '',
       phone: user.phone,
       status: user.status,
       lastLoginAt: user.lastLoginAt,

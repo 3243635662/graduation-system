@@ -216,7 +216,7 @@ describe('用户账号数据范围 (e2e)', () => {
       select: { email: true },
     })
 
-    schoolToken = await login(schoolAdmin.email, process.env['SUPER_ADMIN_PASSWORD'] ?? '')
+    schoolToken = await login(schoolAdmin.email ?? '', process.env['SUPER_ADMIN_PASSWORD'] ?? '')
   }, 60_000)
 
   afterAll(async () => {

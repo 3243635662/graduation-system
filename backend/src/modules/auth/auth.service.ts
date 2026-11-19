@@ -1,5 +1,6 @@
 import type { AuthUser, RoleSummary } from '@graduation/shared'
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -12,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service.js'
 import { EmailCodeService } from './email-code/email-code.service.js'
 import type { LoginInput } from './schemas/login.schema.js'
 import type { RegisterInput } from './schemas/register.schema.js'
+import type { ResetPasswordInput } from './schemas/reset-password.schema.js'
 import { TokenService } from './services/token.service.js'
 import type { AuthUserContext } from './types/auth-user.type.js'
 
@@ -31,11 +33,22 @@ export interface SessionResult {
 /** 登录用户的必要字段 */
 interface UserProfileRecord {
   id: string
-  email: string
+  email: string | null
   phone: string | null
   realName: string
   avatarUrl: string | null
   status: 'ACTIVE' | 'DISABLED' | 'LOCKED'
+  studentProfile?: {
+    studentNo: string
+    class?: { name: string } | null
+  } | null
+  personnelProfile?: {
+    primaryOrganization?: { name: string } | null
+    teacherProfile?: {
+      teacherNo: string
+      title: string | null
+    } | null
+  } | null
 }
 
 /** 用户 + 角色分配的查询结构 */
@@ -154,6 +167,11 @@ function toAuthUser(
     status: user.status,
     roles,
     permissions,
+    studentNo: user.studentProfile?.studentNo ?? null,
+    className: user.studentProfile?.class?.name ?? null,
+    teacherNo: user.personnelProfile?.teacherProfile?.teacherNo ?? null,
+    title: user.personnelProfile?.teacherProfile?.title ?? null,
+    organizationName: user.personnelProfile?.primaryOrganization?.name ?? null,
   }
 }
 
@@ -164,6 +182,31 @@ const userProfileSelect = {
   realName: true,
   avatarUrl: true,
   status: true,
+  studentProfile: {
+    select: {
+      studentNo: true,
+      class: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  },
+  personnelProfile: {
+    select: {
+      primaryOrganization: {
+        select: {
+          name: true,
+        },
+      },
+      teacherProfile: {
+        select: {
+          teacherNo: true,
+          title: true,
+        },
+      },
+    },
+  },
   userRoles: {
     select: {
       scopeOrgUnitId: true,
@@ -320,6 +363,50 @@ export class AuthService {
       refreshToken: refresh.token,
       user: toAuthUser(result.user, [result.role], []),
     }
+  }
+
+  /**
+   * 邮箱验证码重置/修改密码
+   *
+   * 1. 验证并原子消费重置密码验证码（一次性、防暴力破解）
+   * 2. 查询用户并校验状态
+   * 3. 计算 Argon2id 哈希更新密码
+   * 4. 撤销该用户现有的全部会话，强制重新登录
+   */
+  async resetPassword(input: ResetPasswordInput, _meta: SessionMeta): Promise<void> {
+    const email = input.email.trim().toLowerCase()
+
+    await this.emailCodeService.verifyAndConsumePasswordResetCode({
+      email,
+      code: input.emailCode,
+    })
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, status: true },
+    })
+
+    if (!user) {
+      throw new BadRequestException('该邮箱尚未注册或账号不存在')
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new ForbiddenException('账号已被禁用或锁定，无法修改密码')
+    }
+
+    const passwordHash = await hashPassword(input.password)
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      })
+
+      await tx.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      })
+    })
   }
 
   /**

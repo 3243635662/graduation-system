@@ -193,7 +193,7 @@ describe('协管员 HTTP E2E（真实数据库）', () => {
       select: { email: true },
     })
 
-    schoolToken = await login(schoolAdmin.email, process.env['SUPER_ADMIN_PASSWORD'] ?? '')
+    schoolToken = await login(schoolAdmin.email ?? '', process.env['SUPER_ADMIN_PASSWORD'] ?? '')
     deptToken = await login(`dept-admin-${suffix}@example.test`)
     studentToken = await login(`student-${suffix}@example.test`)
   }, 60_000)

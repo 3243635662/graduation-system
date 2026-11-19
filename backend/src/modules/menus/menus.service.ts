@@ -240,7 +240,7 @@ export class MenusService {
 
     return this.menuCache.getOrBuild(
       userId,
-      () => this.buildFromAssignments(context.assignments),
+      () => this.buildFromAssignments(userId, context.assignments),
       ttlSeconds,
     )
   }
@@ -255,7 +255,7 @@ export class MenusService {
   async loadUserMenus(userId: string): Promise<MenuTreeNode[]> {
     const context = await this.permissionService.resolveRoleContext(userId)
 
-    return this.buildFromAssignments(context.assignments)
+    return this.buildFromAssignments(userId, context.assignments)
   }
 
   /** 缓存 TTL 不得超过最近一次资格到期时间 */
@@ -268,6 +268,7 @@ export class MenusService {
   }
 
   private async buildFromAssignments(
+    userId: string,
     assignments: Awaited<ReturnType<PermissionService['resolveRoleContext']>>['assignments'],
   ): Promise<MenuTreeNode[]> {
     const usableAssignments: typeof assignments = []
@@ -298,7 +299,23 @@ export class MenusService {
       return []
     }
 
-    const menuIds = await this.findAuthorizedMenuIds(roleIds)
+    let menuIds = await this.findAuthorizedMenuIds(roleIds)
+
+    // 教师的个人职责入口不代表管理权限；仅在本人有有效 TeacherClassDuty 时显示。
+    if (usableAssignments.some((assignment) => assignment.roleCode === 'TEACHER')) {
+      const now = new Date()
+      const hasDuty = await this.prisma.teacherClassDuty.count({
+        where: {
+          revokedAt: null,
+          validFrom: { lte: now },
+          OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+          teacher: { personnelProfile: { userId } },
+        },
+      })
+      if (hasDuty === 0) {
+        menuIds = await this.removeMenuCode(menuIds, 'MY_CLASS_DUTIES')
+      }
+    }
 
     if (menuIds.length === 0) return []
 
@@ -315,6 +332,12 @@ export class MenusService {
     })
 
     return [...new Set(rows.map((row) => row.menuId))]
+  }
+
+  private async removeMenuCode(menuIds: string[], code: string): Promise<string[]> {
+    const menu = await this.prisma.menu.findUnique({ where: { code }, select: { id: true } })
+
+    return menu ? menuIds.filter((id) => id !== menu.id) : menuIds
   }
 
   /**

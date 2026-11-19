@@ -101,6 +101,33 @@ export const registerFieldSchemas = {
 
 export type RegisterFormValues = z.infer<typeof registerSchema>
 
+/** 密码修改/重置校验 */
+export const resetPasswordSchema = z
+  .object({
+    email: emailSchema,
+    emailCode: emailCodeSchema,
+    password: registerPasswordSchema,
+    confirmPassword: confirmPasswordSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmPassword'],
+        message: 'validation.passwordMismatch',
+      })
+    }
+  })
+
+export const resetPasswordFieldSchemas = {
+  email: emailSchema,
+  emailCode: emailCodeSchema,
+  password: registerPasswordSchema,
+  confirmPassword: confirmPasswordSchema,
+} as const
+
+export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>
+
 /**
  * 个人资料表单校验
  *
@@ -133,3 +160,15 @@ export const profileFieldSchemas = {
 } as const
 
 export type ProfileFormValues = z.infer<typeof profileSchema>
+
+/** 邮箱换绑：当前密码只做必填/长度校验，正确性由后端判断 */
+export const emailChangePasswordSchema = z
+  .string()
+  .min(1, 'validation.passwordRequired')
+  .max(128, 'validation.passwordMax')
+
+/** 邮箱换绑：新邮箱 + 验证码整表校验（提交时使用） */
+export const bindEmailSchema = z.object({
+  email: emailSchema,
+  emailCode: emailCodeSchema,
+})

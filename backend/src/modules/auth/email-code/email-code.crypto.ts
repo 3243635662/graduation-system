@@ -1,7 +1,11 @@
 import { createHmac, randomInt } from 'node:crypto'
 
-/** 验证码业务用途前缀：注册与未来找回密码等场景互不复用 */
+/** 验证码业务用途前缀：注册、找回密码与换绑邮箱互不复用 */
 export const REGISTER_CODE_SCOPE = 'register-code'
+export const RESET_PASSWORD_CODE_SCOPE = 'reset-password-code'
+export const BIND_EMAIL_CODE_SCOPE = 'bind-email-code'
+/** 邮箱换绑令牌用途前缀 */
+export const EMAIL_CHANGE_TOKEN_SCOPE = 'email-change-token'
 
 /** 验证码长度固定为 6 位 */
 export const CODE_LENGTH = 6
@@ -36,11 +40,30 @@ export function hmacHex(pepper: string, payload: string): string {
 }
 
 /** 计算邮箱/IP 的标识哈希，避免把原始值写进 Redis Key */
-export function hashIdentifier(pepper: string, scope: 'email' | 'ip', value: string): string {
+export function hashIdentifier(
+  pepper: string,
+  scope: 'email' | 'ip' | 'user',
+  value: string,
+): string {
   return hmacHex(pepper, `${scope}:${value}`)
 }
 
 /** 计算验证码摘要：验证码 + 业务用途 + 规范化邮箱 */
 export function hashRegisterCode(pepper: string, email: string, code: string): string {
   return hmacHex(pepper, `${REGISTER_CODE_SCOPE}:${normalizeEmail(email)}:${code}`)
+}
+
+/** 计算修改/重置密码验证码摘要：验证码 + 业务用途 + 规范化邮箱 */
+export function hashResetPasswordCode(pepper: string, email: string, code: string): string {
+  return hmacHex(pepper, `${RESET_PASSWORD_CODE_SCOPE}:${normalizeEmail(email)}:${code}`)
+}
+
+/** 计算换绑邮箱验证码摘要：验证码 + 业务用途 + 规范化邮箱 */
+export function hashBindEmailCode(pepper: string, email: string, code: string): string {
+  return hmacHex(pepper, `${BIND_EMAIL_CODE_SCOPE}:${normalizeEmail(email)}:${code}`)
+}
+
+/** 计算邮箱换绑令牌摘要：令牌只以 HMAC 形式保存在 Redis */
+export function hashEmailChangeToken(pepper: string, token: string): string {
+  return hmacHex(pepper, `${EMAIL_CHANGE_TOKEN_SCOPE}:${token}`)
 }

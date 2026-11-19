@@ -58,6 +58,8 @@ export const authUserSchema: SchemaObject = {
     email: {
       type: 'string',
       format: 'email',
+      nullable: true,
+      description: '绑定邮箱；换绑过程中短暂为 null',
       example: 'student@example.com',
     },
     phone: {

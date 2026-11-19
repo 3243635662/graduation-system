@@ -13,6 +13,8 @@ import { CoordinatorOverrideService } from './coordinator-override.service.js'
 import { CoordinatorController } from './coordinator.controller.js'
 import { CounselorClassAssignmentController } from './counselor-class-assignment.controller.js'
 import { CounselorClassAssignmentService } from './counselor-class-assignment.service.js'
+import { MyClassesController } from './my-classes.controller.js'
+import { MyClassesService } from './my-classes.service.js'
 import { PersonnelProfileController } from './personnel-profile.controller.js'
 import { PersonnelProfileService } from './personnel-profile.service.js'
 import { StudentProfileController } from './student-profile.controller.js'
@@ -46,6 +48,7 @@ import { TeacherProfileService } from './teacher-profile.service.js'
     TeacherClassDutyController,
     CounselorClassAssignmentController,
     CoordinatorOverrideController,
+    MyClassesController,
   ],
   providers: [
     CoordinatorActorPolicy,
@@ -57,6 +60,7 @@ import { TeacherProfileService } from './teacher-profile.service.js'
     TeacherProfileService,
     TeacherClassDutyService,
     CounselorClassAssignmentService,
+    MyClassesService,
   ],
   exports: [
     CoordinatorEligibilityService,
